@@ -1,35 +1,31 @@
 <div align="center" id="top"> 
-  
 </div>
 
 <p align="center">
-
-<img src="img/cobrakai_menu.png" alt="Bot Telegram" height="200px" width="250px"/>
-
-<h1 align="center">
-  ========================
-COBRAKAI BOT V1 - BY SICARIOOFC
-  ========================</h1>
- 
+  <img src="img/cobrakai_menu.png" alt="CobraKaiBot Menu" height="200px" width="250px"/><br>
+  <code>======================================</code><br>
+  <b><font size="6">COBRAKAI BOT V1 - BY SICARIOOFC</font></b><br>
+  <code>======================================</code>
 </p>
+
 <div align="center">
-<P align="left">
-<a href="https://www.youtube.com/@nms_sicario023">
-        <img src="https://img.shields.io/badge/YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white" title="📌 YouTube (Ctrl + Click Sigueme en YouTube) ⧉"/>
+<p align="center">
+    <a href="https://www.youtube.com/@nms_sicario023">
+        <img src="https://img.shields.io/badge/YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white" title="📌 YouTube"/>
     </a>
     <a href="https://t.me/mds_inmunes2">
-        <img src="https://img.shields.io/badge/Telegram-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white" title="📌 Telegram (Ctrl + Click Sigueme en Telegram) ⧉"/>
+        <img src="https://img.shields.io/badge/Telegram-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white" title="📌 Telegram"/>
     </a>
     <a href="https://teamzetasprivate.kesug.com">
-        <img src="https://img.shields.io/badge/TeamZetasPrivate-000000?style=for-the-badge&logo=About.me&logoColor=white" title="📌 TeamZetasPrivate (Ctrl + Click Sigueme en mi pagina web) ⧉"/>
+        <img src="https://img.shields.io/badge/TeamZetasPrivate-000000?style=for-the-badge&logo=About.me&logoColor=white" title="📌 TeamZetasPrivate"/>
     </a>
     <a href="mailto:teamzetasprivatev1@gmail.com">
-        <img src="https://img.shields.io/badge/Gmail-D14836?style=for-the-badge&logo=gmail&logoColor=white" title="📌 Gmail (Ctrl + Click para contactarme para cualquier cosa o duda) ⧉"/>
+        <img src="https://img.shields.io/badge/Gmail-D14836?style=for-the-badge&logo=gmail&logoColor=white" title="📌 Gmail"/>
     </a>
     <a href="https://www.paypal.com/paypalme/SicariOfc025">
-        <img src="https://img.shields.io/badge/PayPal-blue?style=for-the-badge&logo=paypal&logoColor=white" title="📌 PayPal (Ctrl + Click Apoyame con una donación para un cafecito) ⧉"/>
+        <img src="https://img.shields.io/badge/PayPal-blue?style=for-the-badge&logo=paypal&logoColor=white" title="📌 PayPal"/>
     </a>
-</P>
+</p>
 </div>
 
  <h4 align="center"> 
@@ -228,7 +224,7 @@ Todos los derechos reservados © 2026 [SicariOfc](https://github.com/programador
 
 <td width="40%" align="center">
   <!-- Muestra el lenguaje del repositorio específico del bot de WhatsApp -->
-  <img align="center" src="https://github-readme-stats.anuraghazra1.vercel.app/api/top-langs/?username=programador024&theme=dark&hide_border=false&no-bg=true&no-frame=true&langs_count=10" title="Lenguaje usado"/>
+ <img align="center" src="https://github-readme-stats.anuraghazra1.vercel.app/api/top-langs/?username=programador024&theme=dark&hide_border=false&no-bg=true&no-frame=true&langs_count=10&hide=python" title="Lenguaje usado"/>
 </td>
 </tr>
 </table>
