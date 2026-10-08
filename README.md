@@ -169,6 +169,7 @@ pm2 start index.js --name "cobrakai-bot"
 # Ver los logs en vivo:    pm2 logs
 # Detener el bot:          pm2 stop cobrakai-bot
 # Reiniciar el bot:        pm2 restart cobrakai-bot
+```
 
 ## Para dejarlo 24/7 en Google Cloud (Ubuntu)
 
