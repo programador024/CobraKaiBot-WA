@@ -142,7 +142,7 @@ npm start
 ```bash
 # Actualizar sistema e instalar Node.js, Git y FFmpeg
 pkg update && pkg upgrade -y
-pkg install -y nodejs git ffmpeg
+pkg install -y nodejs git ffmpeg python make clang build-essential
 
 # Clonar el repositorio y acceder a la carpeta
 git clone https://github.com/programador024/CobraKaiBot-WA.git
