@@ -140,16 +140,17 @@ npm start
 ## Instalación en Termux (Móvil / Tablet / Emulador)
 
 ```bash
-# Actualizar sistema e instalar Node.js, Git y FFmpeg
+# 1. Actualizar el sistema e instalar dependencias de sistema y compiladores (incluyendo libvips para sharp)
 pkg update && pkg upgrade -y
-pkg install -y nodejs git ffmpeg python make clang build-essential
+pkg install -y nodejs git ffmpeg python make clang build-essential libvips
 
-# Clonar el repositorio y acceder a la carpeta
-git clone https://github.com/programador024/CobraKaiBot-WA.git
+# 2. Clonar el repositorio y acceder a la carpeta
+git clone [https://github.com/programador024/CobraKaiBot-WA.git](https://github.com/programador024/CobraKaiBot-WA.git)
 cd CobraKaiBot-WA
 
-# Instalar las dependencias del bot
-npm install
+# 3. Configurar variable para compilar módulos gráficos y compilar dependencias en Android
+export SHARP_IGNORE_GLOBAL_LIBVIPS=false
+npm install --build-from-source || npm install --ignore-scripts && npm rebuild better-sqlite3
 
 # --- MODO MANUAL ---
 # Ejecutar CobraKaiBot V1 normalmente
@@ -168,7 +169,6 @@ pm2 start index.js --name "cobrakai-bot"
 # Ver los logs en vivo:    pm2 logs
 # Detener el bot:          pm2 stop cobrakai-bot
 # Reiniciar el bot:        pm2 restart cobrakai-bot
-```
 
 ## Para dejarlo 24/7 en Google Cloud (Ubuntu)
 
