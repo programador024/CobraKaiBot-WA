@@ -145,7 +145,7 @@ pkg update && pkg upgrade -y
 pkg install -y nodejs git ffmpeg python make clang build-essential libvips
 
 # 2. Clonar el repositorio y acceder a la carpeta
-git clone [https://github.com/programador024/CobraKaiBot-WA.git](https://github.com/programador024/CobraKaiBot-WA.git)
+git clone https://github.com/programador024/CobraKaiBot-WA.git
 cd CobraKaiBot-WA
 
 # 3. Configurar variable para compilar módulos gráficos y compilar dependencias en Android
