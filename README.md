@@ -148,7 +148,8 @@ pkg install -y nodejs git ffmpeg python make clang build-essential libvips
 git clone https://github.com/programador024/CobraKaiBot-WA.git
 cd CobraKaiBot-WA
 
-# 3. Instalar dependencias y reconstruir SQLite
+# 3. Instalar soporte WebAssembly para sharp, dependencias y SQLite
+npm install --cpu=wasm32 @img/sharp-wasm32
 npm install --ignore-scripts --force
 npm rebuild better-sqlite3
 
