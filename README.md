@@ -149,7 +149,7 @@ git clone https://github.com/programador024/CobraKaiBot-WA.git
 cd CobraKaiBot-WA
 
 # 3. Instalar dependencias y reconstruir SQLite
-npm install --ignore-scripts
+npm install --ignore-scripts --force
 npm rebuild better-sqlite3
 
 # --- MODO MANUAL ---

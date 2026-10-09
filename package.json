@@ -11,7 +11,6 @@
   "license": "SEE LICENSE IN LICENSE",
   "dependencies": {
     "@distube/ytdl-core": "^4.16.12",
-    "@img/sharp-wasm32": "^0.33.5",
     "@napi-rs/canvas": "^1.0.10",
     "@whiskeysockets/baileys": "^6.7.24",
     "axios": "^1.20.0",
