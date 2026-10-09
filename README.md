@@ -149,7 +149,7 @@ pkg install -y tur-repo
 pkg install -y nodejs-sharp
 
 # 3. Clonar el repositorio y acceder a la carpeta
-git clone [https://github.com/programador024/CobraKaiBot-WA.git](https://github.com/programador024/CobraKaiBot-WA.git)
+git clone https://github.com/programador024/CobraKaiBot-WA.git
 cd CobraKaiBot-WA
 
 # 4. Instalar dependencias, reconstruir la base de datos y corregir el módulo de stickers
