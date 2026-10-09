@@ -144,15 +144,16 @@ npm start
 pkg update && pkg upgrade -y
 pkg install -y nodejs git ffmpeg python make clang build-essential libvips
 
-# 2. Instalar el repositorio TUR y la versión compilada de sharp para Termux
+# 2. Instalar el repositorio TUR, actualizar lista de paquetes y descargar sharp
 pkg install -y tur-repo
+pkg update -y
 pkg install -y nodejs-sharp
 
 # 3. Clonar el repositorio y acceder a la carpeta
 git clone https://github.com/programador024/CobraKaiBot-WA.git
 cd CobraKaiBot-WA
 
-# 4. Instalar dependencias, reconstruir la base de datos y corregir el módulo de stickers
+# 4. Instalar dependencias, reconstruir la base de datos y vincular módulo de stickers
 npm install --ignore-scripts
 npm rebuild better-sqlite3
 rm -rf node_modules/wa-sticker-formatter/node_modules/sharp
