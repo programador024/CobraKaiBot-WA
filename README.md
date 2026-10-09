@@ -140,11 +140,11 @@ npm start
 ## Instalación en Termux (Móvil / Tablet / Emulador)
 
 ```bash
-# 1. Actualizar el sistema e instalar dependencias básicas y compiladores
+# 1. Actualizar el sistema e instalar dependencias básicas y herramientas de compilación
 pkg update && pkg upgrade -y
 pkg install -y nodejs git ffmpeg python make clang build-essential libvips
 
-# 2. Instalar el repositorio TUR y la versión compilada de sharp para Termux
+# 2. Instalar repositorio TUR y la versión de Sharp compilada para Termux
 pkg install -y tur-repo
 pkg install -y nodejs-sharp
 
@@ -152,8 +152,9 @@ pkg install -y nodejs-sharp
 git clone https://github.com/programador024/CobraKaiBot-WA.git
 cd CobraKaiBot-WA
 
-# 4. Instalar dependencias omitiendo compilaciones conflictivas y reconstruir la base de datos
-npm install --ignore-scripts
+# 4. Instalar dependencias omitiendo binarios opcionales y vincular sharp global de Termux
+npm install --no-optional --ignore-scripts
+npm link sharp
 npm rebuild better-sqlite3
 
 # --- MODO MANUAL ---
