@@ -148,12 +148,13 @@ pkg install -y nodejs git ffmpeg python make clang build-essential libvips
 git clone https://github.com/programador024/CobraKaiBot-WA.git
 cd CobraKaiBot-WA
 
-# 3. Instalar soporte WebAssembly para sharp, dependencias y SQLite
-npm install --cpu=wasm32 @img/sharp-wasm32
-npm install --ignore-scripts --force
+# 3. Instalar Sharp optimizado para Termux (Wasm32) y reconstruir SQLite
+SHARP_IGNORE_GLOBAL_LIBVIPS=1 npm install --cpu=wasm32 @img/sharp-wasm32
+npm install --ignore-scripts
 npm rebuild better-sqlite3
 
-# --- MODO MANUAL ---
+# --- MODO MANUAL --
+# 4. Iniciar CobraKaiBot V1-
 # Ejecutar CobraKaiBot V1 normalmente
 npm start
 # Para detener el bot: Presiona Ctrl + C
