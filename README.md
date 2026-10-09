@@ -140,22 +140,23 @@ npm start
 ## Instalación en Termux (Móvil / Tablet / Emulador)
 
 ```bash
-# 1. Actualizar el sistema e instalar dependencias básicas y herramientas de compilación
+# 1. Actualizar el sistema e instalar dependencias básicas y compiladores
 pkg update && pkg upgrade -y
 pkg install -y nodejs git ffmpeg python make clang build-essential libvips
 
-# 2. Instalar repositorio TUR y la versión de Sharp compilada para Termux
+# 2. Instalar el repositorio TUR y la versión compilada de sharp para Termux
 pkg install -y tur-repo
 pkg install -y nodejs-sharp
 
 # 3. Clonar el repositorio y acceder a la carpeta
-git clone https://github.com/programador024/CobraKaiBot-WA.git
+git clone [https://github.com/programador024/CobraKaiBot-WA.git](https://github.com/programador024/CobraKaiBot-WA.git)
 cd CobraKaiBot-WA
 
-# 4. Instalar dependencias omitiendo binarios opcionales y vincular sharp global de Termux
-npm install --no-optional --ignore-scripts
-npm link sharp
+# 4. Instalar dependencias, reconstruir la base de datos y corregir el módulo de stickers
+npm install --ignore-scripts
 npm rebuild better-sqlite3
+rm -rf node_modules/wa-sticker-formatter/node_modules/sharp
+cp -r $PREFIX/lib/node_modules/sharp node_modules/wa-sticker-formatter/node_modules/
 
 # --- MODO MANUAL ---
 # Ejecutar CobraKaiBot V1 normalmente
