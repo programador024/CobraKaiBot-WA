@@ -140,17 +140,16 @@ npm start
 ## Instalación en Termux (Móvil / Tablet / Emulador)
 
 ```bash
-# 1. Actualizar el sistema e instalar dependencias básicas
+# 1. Actualizar el sistema e instalar dependencias
 pkg update && pkg upgrade -y
 pkg install -y nodejs git ffmpeg python make clang build-essential libvips
 
-# 2. Clonar el repositorio y acceder a la carpeta
+# 2. Clonar repositorio y acceder
 git clone https://github.com/programador024/CobraKaiBot-WA.git
 cd CobraKaiBot-WA
 
-# 3. Instalar dependencias, soporte WebAssembly y base de datos
+# 3. Instalar dependencias y reconstruir SQLite
 npm install --ignore-scripts
-npm install @img/sharp-wasm32
 npm rebuild better-sqlite3
 
 # --- MODO MANUAL ---
