@@ -25,8 +25,5 @@
     "wa-sticker-formatter": "^4.4.4",
     "yt-dlp-exec": "^1.0.2",
     "yt-search": "^2.13.1"
-  },
-  "overrides": {
-    "sharp": "$sharp"
   }
 }
