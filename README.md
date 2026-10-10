@@ -140,21 +140,23 @@ npm start
 ## Instalación en Termux (Móvil / Tablet / Emulador)
 
 ```bash
-# 1. Actualizar el sistema e instalar dependencias
+# 1. Actualizar el sistema e instalar dependencias nativas del sistema
 pkg update && pkg upgrade -y
 pkg install -y nodejs git ffmpeg python make clang build-essential libvips
 
-# 2. Clonar repositorio y acceder
+# 2. Clonar repositorio y acceder a la carpeta
 git clone https://github.com/programador024/CobraKaiBot-WA.git
 cd CobraKaiBot-WA
 
-# 3. Instalar dependencias e integrar soporte WebAssembly para Sharp
-npm install --ignore-scripts
-SHARP_IGNORE_GLOBAL_LIBVIPS=1 npm install --cpu=wasm32 @img/sharp-wasm32 --force
-npm rebuild better-sqlite3
+# 3. Configurar variable de entorno para forzar el uso de libvips en Termux
+export SHARP_IGNORE_GLOBAL_LIBVIPS=0
+
+# 4. Instalar dependencias e integrar soporte nativo
+npm install
+npm rebuild sharp better-sqlite3
 
 # --- MODO MANUAL ---
-# 4. Iniciar CobraKaiBot V1
+# 5. Iniciar CobraKaiBot V1
 npm start
 # Para detener el bot: Presiona Ctrl + C
 
