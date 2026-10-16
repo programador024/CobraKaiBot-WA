@@ -102,7 +102,7 @@ git clone https://github.com/programador024/CobraKaiBot-WA.git
 cd CobraKaiBot-WA
 
 # Instalar dependencias
-npm install
+npm install --legacy-peer-deps
 
 # Iniciar CobraKaiBot V1
 npm start
@@ -128,7 +128,7 @@ git clone https://github.com/programador024/CobraKaiBot-WA.git
 cd CobraKaiBot-WA
 
 # Instalar dependencias
-npm install
+npm install --legacy-peer-deps
 
 # Ejecutar CobraKaiBot V1 manualmente
 npm start
@@ -140,17 +140,16 @@ npm start
 ## Instalación en Termux (Móvil / Tablet / Emulador)
 
 ```bash
-# 1. Actualizar repositorios e instalar Node.js LTS, Git, FFmpeg, Python y herramientas de compilación
+# 1. Actualizar repositorios e instalar herramientas de compilación
 pkg update && pkg upgrade -y
-pkg install -y nodejs-lts git ffmpeg python make clang build-essential libvips
+pkg install -y nodejs-lts git ffmpeg python make clang build-essential
 
 # 2. Clonar el repositorio y acceder a la carpeta del proyecto
 git clone https://github.com/programador024/CobraKaiBot-WA.git
 cd CobraKaiBot-WA
 
-# 3. Instalar Sharp optimizado para WebAssembly en móviles y dependencias del proyecto
-npm install sharp@latest @img/sharp-wasm32@latest
-npm install
+# 3. Instalar dependencias del proyecto
+npm install --legacy-peer-deps
 
 # 4. Reconstruir la base de datos SQLite para la arquitectura de Android
 npm rebuild better-sqlite3

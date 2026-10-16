@@ -20,7 +20,8 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import { Sticker, StickerTypes } from "wa-sticker-formatter";
-import sharp from "sharp";
+import https from "https";
+import axios from "axios";
 
 // guardar warns
 const WARN_FILE = "./warns.json";
@@ -318,21 +319,31 @@ const question = (text) => {
 
 function mostrarBannerConsole() {
   console.clear();
-  console.log(
-    "\x1b[36m%s\x1b[0m",
-    `
-  ========================================================================
-   ██████╗ ██████╗ ██████╗ ██████╗  █████╗ ██╗  ██╗ █████╗ ██╗
-  ██╔════╝██╔═══██╗██╔══██╗██╔══██╗██╔══██╗██║ ██╔╝██╔══██╗██║
-  ██║     ██║   ██║██████╔╝██████╔╝███████║█████═╝ ███████║██║
-  ██║     ██║   ██║██╔══██╗██╔══██╗██╔══██║██╔═██╗ ██╔══██║██║
-  ╚██████╗╚██████╔╝██████╔╝██║  ██║██║  ██║██║  ██╗██║  ██║██║
-   ╚═════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝
-  ========================================================================
-                        COBRAKAI BOT V1 - BY SICARIOOFC
-  ========================================================================
-  `,
-  );
+  const anchoTerminal = process.stdout.columns || 80;
+
+  // Texto del banner limpio de espacios extremos izquierdos originales
+  const bannerLineas = [
+    "========================================================================",
+    " ██████╗ ██████╗ ██████╗ ██████╗  █████╗ ██╗  ██╗ █████╗ ██╗",
+    "██╔════╝██╔═══██╗██╔══██╗██╔══██╗██╔══██╗██║ ██╔╝██╔══██╗██║",
+    "██║     ██║   ██║██████╔╝██████╔╝███████║█████═╝ ███████║██║",
+    "██║     ██║   ██║██╔══██╗██╔══██╗██╔══██║██╔═██╗ ██╔══██║██║",
+    "╚██████╗╚██████╔╝██████╔╝██║  ██║██║  ██║██║  ██╗██║  ██║██║",
+    " ╚═════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝",
+    "========================================================================",
+    "                     COBRAKAI BOT V1 - BY SICARIOOFC                    ",
+    "========================================================================",
+  ];
+
+  // Imprimir cada línea centrada horizontalmente con color cian
+  bannerLineas.forEach((linea) => {
+    const espacios = Math.max(
+      0,
+      Math.floor((anchoTerminal - linea.trim().length) / 2),
+    );
+    console.log("\x1b[36m%s\x1b[0m", " ".repeat(espacios) + linea.trim());
+  });
+  console.log(""); // Salto de línea final estético
 }
 
 async function buscarImagen(query) {
@@ -440,95 +451,6 @@ async function buscarEnGoogle(query, limite = 5) {
   }
 
   return "❌ No se encontraron resultados para la búsqueda.";
-}
-
-// Crear Texto a Sticker con fuente incrustada para compatibilidad total en Termux y Windows
-async function crearImagenTexto(texto) {
-  // 1. Separar el texto en palabras y agruparlas en líneas de máximo 15 caracteres
-  const palabras = texto.split(" ");
-  const lineas = [];
-  let lineaActual = "";
-
-  palabras.forEach((palabra) => {
-    if ((lineaActual + palabra).length > 15) {
-      lineas.push(lineaActual.trim());
-      lineaActual = palabra + " ";
-    } else {
-      lineaActual += palabra + " ";
-    }
-  });
-  if (lineaActual) lineas.push(lineaActual.trim());
-
-  // 2. Configurar el tamaño de la fuente según la cantidad de líneas
-  let fontSize = 50;
-  if (lineas.length > 2) fontSize = 40;
-  if (lineas.length > 4) fontSize = 30;
-
-  // 3. Generar los elementos <text> dinámicamente con saltos de línea (dy)
-  const textoSvgDinamico = lineas
-    .map((line, index) => {
-      const limpia = line
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;");
-      const dy = index === 0 ? `${-(lineas.length - 1) * 0.6}em` : "1.2em";
-      return `<tspan x="50%" dy="${dy}">${limpia}</tspan>`;
-    })
-    .join("");
-
-  // 4. Cargar la fuente local en Base64 para asegurar que Termux la lea sin fallos
-  let fontCss = "";
-  try {
-    // Asegúrate de tener un archivo .ttf en la carpeta ./fonts/tu-fuente.ttf
-    const fontPath = path.join(process.cwd(), "fonts", "custom-font.ttf");
-    if (fs.existsSync(fontPath)) {
-      const fontBuffer = fs.readFileSync(fontPath);
-      const fontBase64 = fontBuffer.toString("base64");
-      fontCss = `
-        @font-face {
-          font-family: 'CustomFont';
-          src: url(data:font/ttf;charset=utf-8;base64,${fontBase64});
-        }
-      `;
-    }
-  } catch (e) {
-    console.error("No se pudo cargar la fuente local, usando respaldo del sistema:", e.message);
-  }
-
-  // 5. Armar el diseño final del SVG incluyendo los estilos de la fuente incrustada
-  const svgTemplate = `
-    <svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <style>
-          ${fontCss}
-          .text-sticker {
-            font-family: 'CustomFont', 'DejaVu Sans', sans-serif;
-            font-weight: bold;
-            font-size: ${fontSize}px;
-            fill: #FFFFFF;
-          }
-        </style>
-        <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" style="stop-color:#FF007F;stop-opacity:1" />
-          <stop offset="50%" style="stop-color:#7F00FF;stop-opacity:1" />
-          <stop offset="100%" style="stop-color:#00F0FF;stop-opacity:1" />
-        </linearGradient>
-        <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="0" dy="4" stdDeviation="6" flood-opacity="0.8"/>
-        </filter>
-      </defs>
-      
-      <rect x="20" y="20" width="472" height="472" rx="40" fill="url(#grad)" stroke="#FFFFFF" stroke-width="10" />
-      
-      <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" 
-            class="text-sticker" filter="url(#shadow)">
-        ${textoSvgDinamico}
-      </text>
-    </svg>
-  `;
-
-  // 6. Renderizar el SVG mediante sharp de forma segura
-  return await sharp(Buffer.from(svgTemplate)).png().toBuffer();
 }
 
 function calcularEdad(fechaNacimientoStr) {
@@ -697,6 +619,7 @@ function saveWarns(data) {
 // Conexión a WhatsApp Bot
 async function connectToWhatsApp(isReconnect = false) {
   mostrarBannerConsole();
+  const anchoTerminal = process.stdout.columns || 80;
 
   const authFolder = "auth_info_baileys";
   const credsFile = path.join(authFolder, "creds.json");
@@ -709,23 +632,82 @@ async function connectToWhatsApp(isReconnect = false) {
 
   // Solo pedir menú si NO existe sesión previa y NO es una reconexión automática de socket
   if (!hasSession && !isReconnect) {
-    console.log("Selecciona el método de vinculación:");
-    console.log(" 1. Escanear Código QR");
-    console.log(" 2. Código de vinculación (Número de teléfono)\n");
+    const lineasMenu = [
+      "Selecciona el método de vinculación:",
+      " 1. Escanear Código QR",
+      " 2. Código de vinculación (Número de teléfono)",
+      "",
+    ];
 
-    const opcion = await question("Escribe el número de la opción (1 o 2): ");
+    lineasMenu.forEach((linea) => {
+      const padding = Math.max(
+        0,
+        Math.floor((anchoTerminal - linea.length) / 2),
+      );
+      console.log(" ".repeat(padding) + linea);
+    });
+
+    const textoPregunta = "Escribe el número de la opción (1 o 2): ";
+    const paddingPregunta = Math.max(
+      0,
+      Math.floor((anchoTerminal - textoPregunta.length) / 2),
+    );
+    const opcion = await question(" ".repeat(paddingPregunta) + textoPregunta);
 
     if (opcion === "2") {
       usePairingCode = true;
+
+      let paisDefecto = "MX";
+      let prefijoDefecto = "52";
+
+      try {
+        const resIp = await fetch("https://ipapi.co/json/", {
+          signal: AbortSignal.timeout(3000),
+        });
+        if (resIp.ok) {
+          const dataIp = await resIp.json();
+          if (dataIp && dataIp.country_code) {
+            const matchMapeo = COUNTRY_PREFIX_MAP.find(
+              (item) => item.country === dataIp.country_code,
+            );
+            if (matchMapeo) {
+              paisDefecto = matchMapeo.country;
+              prefijoDefecto = matchMapeo.prefix;
+            }
+          }
+        }
+      } catch (e) {}
+
+      const textoPromptTel = `Escribe tu número de WhatsApp con código de país (Ejemplo ${paisDefecto}: +${prefijoDefecto}1234567890):`;
+      const paddingTel = Math.max(
+        0,
+        Math.floor((anchoTerminal - textoPromptTel.length) / 2),
+      );
+
+      console.log("");
       let inputPhone = await question(
-        "\nEscribe tu número de WhatsApp con código de país (Ejemplo: 521234567890):\n> ",
+        " ".repeat(paddingTel) +
+          textoPromptTel +
+          "\n" +
+          " ".repeat(Math.max(0, Math.floor((anchoTerminal - 2) / 2))) +
+          "+",
       );
       phoneNumber = inputPhone.replace(/\D/g, "");
     } else {
-      console.log("\n⌛ Esperando generación del Código QR...");
+      const textoEspera = "⌛ Esperando generación del Código QR...";
+      const paddingEspera = Math.max(
+        0,
+        Math.floor((anchoTerminal - textoEspera.length) / 2),
+      );
+      console.log("\n" + " ".repeat(paddingEspera) + textoEspera);
     }
   } else if (hasSession) {
-    console.log("🔄 Sesión encontrada, conectando a WhatsApp...");
+    const msgSesion = "🔄 Sesión encontrada, conectando a WhatsApp...";
+    const paddingSesion = Math.max(
+      0,
+      Math.floor((anchoTerminal - msgSesion.length) / 2),
+    );
+    console.log("\x1b[33m%s\x1b[0m", " ".repeat(paddingSesion) + msgSesion);
   }
 
   const sock = makeWASocket({
@@ -738,26 +720,57 @@ async function connectToWhatsApp(isReconnect = false) {
       setTimeout(async () => {
         try {
           const code = await sock.requestPairingCode(phoneNumber);
-          console.log("\n========================================");
-          console.log(`📌 TU CÓDIGO DE VINCULACIÓN ES: \x1b[32m${code}\x1b[0m`);
-          console.log("========================================\n");
-        } catch (e) {
-          console.error(
-            "❌ Error al solicitar código de vinculación:",
-            e.message,
+
+          const lineaSep = "========================================";
+          const msgCodigo = `📌 TU CÓDIGO DE VINCULACIÓN ES: ${code}`;
+          const msgCodigoColor = `📌 TU CÓDIGO DE VINCULACIÓN ES: \x1b[32m${code}\x1b[0m`;
+
+          const pSep = Math.max(
+            0,
+            Math.floor((anchoTerminal - lineaSep.length) / 2),
           );
+          const pCod = Math.max(
+            0,
+            Math.floor((anchoTerminal - msgCodigo.length) / 2),
+          );
+
+          console.log("\n" + " ".repeat(pSep) + lineaSep);
+          console.log(" ".repeat(pCod) + msgCodigoColor);
+          console.log(" ".repeat(pSep) + lineaSep + "\n");
+        } catch (e) {
+          const errMsg = `❌ Error al solicitar código de vinculación: ${e.message}`;
+          const pErr = Math.max(
+            0,
+            Math.floor((anchoTerminal - errMsg.length) / 2),
+          );
+          console.error(" ".repeat(pErr) + errMsg);
         }
       }, 3000);
     } else {
-      console.log("❌ No ingresaste un número válido.");
+      const errNum = "❌ No ingresaste un número válido.";
+      const pNum = Math.max(0, Math.floor((anchoTerminal - errNum.length) / 2));
+      console.log(" ".repeat(pNum) + errNum);
     }
   }
 
   sock.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect, qr } = update;
 
+    // --- CENTRAR EL CÓDIGO QR AUTOMÁTICAMENTE EN LA TERMINAL ---
     if (qr && !usePairingCode && !hasSession) {
-      qrcode.generate(qr, { small: true });
+      console.log(""); // Espacio estético previo
+      qrcode.generate(qr, { small: true }, (qrcodeStr) => {
+        const lineasQr = qrcodeStr.split("\n");
+        lineasQr.forEach((linea) => {
+          if (linea.trim().length > 0) {
+            const paddingQr = Math.max(
+              0,
+              Math.floor((anchoTerminal - linea.length) / 2),
+            );
+            console.log(" ".repeat(paddingQr) + linea);
+          }
+        });
+      });
     }
 
     if (connection === "close") {
@@ -765,27 +778,49 @@ async function connectToWhatsApp(isReconnect = false) {
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
       if (statusCode === DisconnectReason.loggedOut) {
-        console.log(
-          "⚠️ Sesión cerrada o desvinculada. Eliminando credenciales...",
+        const msgCierre =
+          "⚠️ Sesión cerrada o desvinculada. Eliminando credenciales...";
+        const pCierre = Math.max(
+          0,
+          Math.floor((anchoTerminal - msgCierre.length) / 2),
         );
+        console.log(" ".repeat(pCierre) + msgCierre);
+
         try {
           fs.rmSync(authFolder, { recursive: true, force: true });
         } catch (err) {
-          console.error("Error al borrar credenciales:", err.message);
+          const errCred = `Error al borrar credenciales: ${err.message}`;
+          const pErrCred = Math.max(
+            0,
+            Math.floor((anchoTerminal - errCred.length) / 2),
+          );
+          console.error(" ".repeat(pErrCred) + errCred);
         }
         connectToWhatsApp(false);
       } else if (shouldReconnect) {
-        console.log("Estableciendo reconexión con WhatsApp...");
+        const msgRecon = "Estableciendo reconexión con WhatsApp...";
+        const pRecon = Math.max(
+          0,
+          Math.floor((anchoTerminal - msgRecon.length) / 2),
+        );
+        console.log(" ".repeat(pRecon) + msgRecon);
         connectToWhatsApp(true);
       }
     } else if (connection === "open") {
-      console.log("\n=============================================");
-      console.log("🤖 CobraKaiBot conectado con éxito a WhatsApp");
-      console.log("=============================================\n");
+      const b1 = "=============================================";
+      const b2 = "🤖 CobraKaiBot conectado con éxito a WhatsApp";
+
+      const pB1 = Math.max(0, Math.floor((anchoTerminal - b1.length) / 2));
+      const pB2 = Math.max(0, Math.floor((anchoTerminal - b2.length) / 2));
+
+      console.log("\x1b[36m%s\x1b[0m", "\n" + " ".repeat(pB1) + b1);
+      console.log("\x1b[32m%s\x1b[0m", " ".repeat(pB2) + b2);
+      console.log("\x1b[36m%s\x1b[0m", " ".repeat(pB1) + b1 + "\n");
     }
   });
 
   sock.ev.on("creds.update", saveCreds);
+
 
   sock.ev.on("group-participants.update", async (update) => {
     try {
@@ -2339,6 +2374,7 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
               mimetype: "audio/mp4",
               fileName: `${video.title}.mp3`,
               caption: `🎵 *${video.title}*\n⏱️ *Duración:* ${video.timestamp}\n🔗 ${video.url}`,
+              contextInfo: Marca_SicariOfc,
             },
             { quoted: msg },
           );
@@ -2648,14 +2684,14 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         }
       }
 
-      if (command === "/s" || command === "/stext") {
+      if (command === "/s" || command === "/attp") {
         const textoSticker = args.join(" ").trim();
 
         if (!textoSticker) {
           return sock.sendMessage(
             from,
             {
-              text: "⚠️ Debes escribir un texto después del comando.\n\n*Ejemplo:* /s Ing Informático",
+              text: "⚠️ Debes escribir un texto después del comando.\n\n*Ejemplo:* /s Hola Mundo",
             },
             { quoted: msg },
           );
@@ -2663,19 +2699,150 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
 
         const msgEspera = await sock.sendMessage(
           from,
-          { text: "⏳ Creando sticker de texto..." },
+          { text: "⏳ Generando tu sticker Pro con fuente personalizada..." },
           { quoted: msg },
         );
 
         try {
-          const imageBuffer = await crearImagenTexto(textoSticker);
+          // Importar Jimp
+          const JimpModule = await import("jimp");
+          const Jimp = JimpModule.default || JimpModule;
+
+          const width = 512;
+          const height = 512;
+
+          // Lienzo base transparente
+          const image = await new Promise((resolve, reject) => {
+            new Jimp(width, height, 0x00000000, (err, img) => {
+              if (err) reject(err);
+              else resolve(img);
+            });
+          });
+
+          // Detectar si el texto contiene acentos, eñes o caracteres fuera de A-Z, a-z, 0-9 y espacios básicos
+          // Tu fuente personalizada solo tiene a-z, A-Z y 0-9. Cualquier acento (á, é, í, ó, ú, ñ) activará el respaldo.
+          const tieneCaracteresEspeciales = /[^\w\s]/i.test(textoSticker);
+
+          let customFontWhite, customFontBlack;
+
+          if (tieneCaracteresEspeciales) {
+            // Respaldo automático porque el texto tiene acentos o símbolos que tu .fnt no soporta
+            customFontWhite = await Jimp.loadFont(Jimp.FONT_SANS_64_WHITE);
+            customFontBlack = await Jimp.loadFont(Jimp.FONT_SANS_64_BLACK);
+          } else {
+            // Intentar cargar tu fuente personalizada si el texto es totalmente compatible (A-Z, a-z, 0-9)
+            try {
+              const fontPath = path.join(
+                process.cwd(),
+                "fonts",
+                "CobraKait_font.fnt",
+              );
+              customFontWhite = await Jimp.loadFont(fontPath);
+              customFontBlack = customFontWhite;
+            } catch (e) {
+              // Respaldo de seguridad en caso de error de lectura de archivo
+              customFontWhite = await Jimp.loadFont(Jimp.FONT_SANS_64_WHITE);
+              customFontBlack = await Jimp.loadFont(Jimp.FONT_SANS_64_BLACK);
+            }
+          }
+
+          // Función inteligente de envoltura de texto (Word Wrap automático)
+          function wrapText(text, maxCharsPerLine = 16) {
+            const words = text.split(" ");
+            let lines = [];
+            let currentLine = "";
+
+            for (let word of words) {
+              if (word.length > maxCharsPerLine) {
+                if (currentLine) {
+                  lines.push(currentLine.trim());
+                  currentLine = "";
+                }
+                for (let i = 0; i < word.length; i += maxCharsPerLine) {
+                  lines.push(word.substring(i, i + maxCharsPerLine));
+                }
+                continue;
+              }
+
+              const testLine = currentLine ? currentLine + " " + word : word;
+              if (testLine.length <= maxCharsPerLine) {
+                currentLine = testLine;
+              } else {
+                lines.push(currentLine.trim());
+                currentLine = word;
+              }
+            }
+            if (currentLine) {
+              lines.push(currentLine.trim());
+            }
+            return lines.join("\n");
+          }
+
+          const finalText = wrapText(textoSticker, 16);
+          const maxWidth = 450;
+
+          // 1. DIBUJAR BORDE NEGRO
+          for (let dx = -4; dx <= 4; dx += 4) {
+            for (let dy = -4; dy <= 4; dy += 4) {
+              if (dx === 0 && dy === 0) continue;
+              image.print(
+                customFontBlack,
+                31 + dx,
+                31 + dy,
+                {
+                  text: finalText,
+                  alignmentX: Jimp.HORIZONTAL_ALIGN_CENTER,
+                  alignmentY: Jimp.VERTICAL_ALIGN_MIDDLE,
+                },
+                maxWidth,
+                height - 62,
+              );
+            }
+          }
+
+          // 2. CREAR CAPA DE TEXTO
+          const textLayer = await new Promise((resolve, reject) => {
+            new Jimp(width, height, 0x00000000, (err, img) => {
+              if (err) reject(err);
+              else resolve(img);
+            });
+          });
+
+          textLayer.print(
+            customFontWhite,
+            31,
+            31,
+            {
+              text: finalText,
+              alignmentX: Jimp.HORIZONTAL_ALIGN_CENTER,
+              alignmentY: Jimp.VERTICAL_ALIGN_MIDDLE,
+            },
+            maxWidth,
+            height - 62,
+          );
+
+          // 3. APLICAR DEGRADADO DE COLOR
+          textLayer.scan(0, 0, width, height, function (x, y, idx) {
+            const alpha = this.bitmap.data[idx + 3];
+            if (alpha > 10) {
+              const ratio = y / height;
+              this.bitmap.data[idx] = 255 * (1 - ratio) + 80 * ratio; // Rojo
+              this.bitmap.data[idx + 1] = 50 + ratio * 100; // Verde
+              this.bitmap.data[idx + 2] = 255; // Azul
+              this.bitmap.data[idx + 3] = 255; // Alpha
+            }
+          });
+
+          image.composite(textLayer, 0, 0);
+
+          const imageBuffer = await image.getBufferAsync(Jimp.MIME_PNG);
 
           const sticker = new Sticker(imageBuffer, {
             pack: " ℹ️ [🤖] CREADO POR:\n • ↳ CobraKaiBot\n _ \n ℹ️ [🧑‍💻] PROPIETARIO:\n • ↳ SicarioOfc",
             author:
               " • ℹ️ [👤] HECHO POR:\n • ↳ CobraKaiBot\n _ \n • [☃️] ¡El mejor bot!",
             type: StickerTypes.FULL,
-            quality: 80,
+            quality: 90,
           });
 
           const stickerBuffer = await sticker.toBuffer();
@@ -2690,16 +2857,19 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
             react: { text: "🎨", key: sentMsg.key },
           });
         } catch (error) {
-          console.error("Error en comando /s:", error);
+          console.error(
+            "Error en comando /s o /attp con fuente personalizada:",
+            error,
+          );
           await sock.sendMessage(
             from,
-            { text: "❌ Ocurrió un error al generar el sticker de texto." },
+            { text: "❌ Ocurrió un error al cargar la fuente personalizada." },
             { quoted: msg },
           );
         } finally {
           try {
             await sock.sendMessage(from, { delete: msgEspera.key });
-          } catch {}
+          } catch (e) {}
         }
       }
 
