@@ -151,34 +151,40 @@ npm restart
 ## Instalación en Termux (Móvil / Tablet / Emulador)
 
 ```bash
-# 1. Actualizar repositorios e instalar herramientas de compilación
+# 1. Otorgar permisos de almacenamiento en Android (Acepta el cuadro de diálogo en tu pantalla)
+termux-setup-storage
+
+# 2. Actualizar repositorios e instalar herramientas de compilación necesarias
 pkg update && pkg upgrade -y
 pkg install -y nodejs-lts git ffmpeg python make clang build-essential
 
-# 2. Clonar el repositorio y acceder a la carpeta del proyecto
+# 3. Clonar el repositorio y acceder a la carpeta del proyecto
 git clone https://github.com/programador024/CobraKaiBot-WA.git
 cd CobraKaiBot-WA
 
-# 3. Instalar dependencias del proyecto
+# 4. Instalar dependencias del proyecto
 npm install --legacy-peer-deps
 
-# 4. Reconstruir la base de datos SQLite para la arquitectura de Android
+# 5. Reconstruir la base de datos SQLite para la arquitectura de Android
 npm rebuild better-sqlite3
 
-# 5. Iniciar el bot en modo manual
+# 6. Evitar que Android suspenda a Termux cuando se apaga la pantalla
+termux-wake-lock
+
+# 7. Iniciar el bot en modo manual
 npm start
 
-# Reiniciar el bot
+# Reiniciar el bot (Modo manual)
 npm restart
+
+# SI SALES DE LA TERMINAL, TENER EJECUTADO ESTO
+# --- EJECUCIÓN EN SEGUNDO PLANO 24/7 CON PM2 ---
 
 # Instalar PM2 globalmente
 npm install -g pm2
 
-# Iniciar el bot en segundo plano con PM2
+# Iniciar CobraKaiBot V1 en segundo plano con PM2
 pm2 start index.js --name "cobrakai-bot"
-
-# Bloquear el uso de energía para mantener Termux activo permanentemente
-termux-wake-lock
 
 # Comandos útiles de PM2:
 # Ver el estado del bot:   pm2 status

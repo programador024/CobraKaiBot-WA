@@ -23,6 +23,23 @@ import { Sticker, StickerTypes } from "wa-sticker-formatter";
 import https from "https";
 import axios from "axios";
 
+// --- SILENCIAR SPAM DE ERRORES DE SESIÓN (Bad MAC, libsignal, Baileys) ---
+const originalStderrWrite = process.stderr.write.bind(process.stderr);
+process.stderr.write = function (chunk, encoding, fd) {
+  const str = chunk ? chunk.toString() : "";
+  if (
+    str.includes("Bad MAC") ||
+    str.includes("Failed to decrypt message") ||
+    str.includes("Session error") ||
+    str.includes("libsignal") ||
+    str.includes("SessionCipher") ||
+    str.includes("queue_job.js")
+  ) {
+    return true; // Ignora el mensaje de error basura y no lo imprime
+  }
+  return originalStderrWrite(chunk, encoding, fd);
+};
+
 // guardar warns
 const WARN_FILE = "./warns.json";
 // Registro de tiempo de actividad del bot
@@ -770,8 +787,10 @@ async function connectToWhatsApp(isReconnect = false) {
   }
 
   const sock = makeWASocket({
-    logger: pino({ level: "silent" }),
+    logger: pino({ level: "fatal" }), //para evitar advertencias leves
     auth: state,
+    printQRInTerminal: false,
+    syncFullHistory: false, // Evita sincronizar todo el historial largo
   });
 
   if (usePairingCode && !sock.authState.creds.registered) {
