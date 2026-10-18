@@ -107,31 +107,42 @@ npm install --legacy-peer-deps
 # Iniciar CobraKaiBot V1
 npm start
 
+# Reiniciar el bot
+npm restart
+
 # Detener bot: Presiona Ctrl + C
 ```
 
 ## Instalación en Ubuntu (Google Cloud)
 
 ```bash
-# Actualizar el sistema
+# Actualizar el sistema y dependencias base
 sudo apt update && sudo apt upgrade -y
 
-# Instalar Git y FFmpeg
-sudo apt install -y git ffmpeg
+# Instalar Git, FFmpeg y herramientas de compilación necesarias (como build-essential para better-sqlite3)
+sudo apt install -y git ffmpeg build-essential curl
 
-# Instalar Node.js (Versión LTS recomendada v20)
-curl -fsSL https://nodesource.com | sudo -E bash -
+# Instalar Node.js (Versión LTS moderna recomendada)
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt install -y nodejs
 
-# Clonar repositorio y acceder
+# Clonar repositorio y acceder a la carpeta
 git clone https://github.com/programador024/CobraKaiBot-WA.git
 cd CobraKaiBot-WA
 
-# Instalar dependencias
+# Instalar dependencias del proyecto
 npm install --legacy-peer-deps
+
+# Reconstruir la base de datos SQLite para la arquitectura del servidor
+npm rebuild better-sqlite3
 
 # Ejecutar CobraKaiBot V1 manualmente
 npm start
+
+# Reiniciar el bot
+npm restart
+
+# Detener el bot: Presiona Ctrl + C
 
 # Detener el bot: Presiona Ctrl + C
 # Para dejarlo 24/7, revisa la sección de PM2 más abajo.
@@ -154,8 +165,11 @@ npm install --legacy-peer-deps
 # 4. Reconstruir la base de datos SQLite para la arquitectura de Android
 npm rebuild better-sqlite3
 
-# 5. Iniciar el bot en modo manual por primera vez (para escanear el código QR)
+# 5. Iniciar el bot en modo manual
 npm start
+
+# Reiniciar el bot
+npm restart
 
 # Instalar PM2 globalmente
 npm install -g pm2

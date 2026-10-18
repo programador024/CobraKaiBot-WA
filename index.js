@@ -79,18 +79,19 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS grupos_config (
     jid TEXT PRIMARY KEY,
     bienvenida INTEGER DEFAULT 0,
-    despedida INTEGER DEFAULT 0
+    despedida INTEGER DEFAULT 0,
+    antilink INTEGER DEFAULT 0,
+    antiinsultos INTEGER DEFAULT 0
+  )
+`);
+// Crear tabla para bloqueos en chat privado de antiinsultos
+db.exec(`
+  CREATE TABLE IF NOT EXISTS bloqueos_privados (
+    jid TEXT PRIMARY KEY
   )
 `);
 
-try {
-  db.exec("ALTER TABLE usuarios ADD COLUMN fecha_nacimiento TEXT");
-} catch (e) {
-  // Ignorar si la columna ya existe
-}
-
 // --- MAPEO DE PREFIJOS TELEFÓNICOS INTERNACIONALES ---
-// Ordenado por longitud de prefijo descendente para priorizar prefijos específicos
 const COUNTRY_PREFIX_MAP = [
   // --- Prefijos de 3 dígitos ---
   { prefix: "211", country: "SS", timeZone: "Africa/Juba" },
@@ -298,8 +299,8 @@ const COUNTRY_PREFIX_MAP = [
   { prefix: "95", country: "MM", timeZone: "Asia/Yangon" },
   { prefix: "98", country: "IR", timeZone: "Asia/Tehran" },
   // --- Prefijos de 1 dígito ---
-  { prefix: "1", country: "US", timeZone: "America/New_York" }, // Norteamérica (US/CA)
-  { prefix: "7", country: "RU", timeZone: "Europe/Moscow" }, // Rusia / Kazajistán
+  { prefix: "1", country: "US", timeZone: "America/New_York" },
+  { prefix: "7", country: "RU", timeZone: "Europe/Moscow" },
 ];
 
 // --- FUNCIONES HELPER GLOBALES ---
@@ -321,7 +322,6 @@ function mostrarBannerConsole() {
   console.clear();
   const anchoTerminal = process.stdout.columns || 80;
 
-  // Texto del banner limpio de espacios extremos izquierdos originales
   const bannerLineas = [
     "========================================================================",
     " ██████╗ ██████╗ ██████╗ ██████╗  █████╗ ██╗  ██╗ █████╗ ██╗",
@@ -335,7 +335,6 @@ function mostrarBannerConsole() {
     "========================================================================",
   ];
 
-  // Imprimir cada línea centrada horizontalmente con color cian
   bannerLineas.forEach((linea) => {
     const espacios = Math.max(
       0,
@@ -343,7 +342,7 @@ function mostrarBannerConsole() {
     );
     console.log("\x1b[36m%s\x1b[0m", " ".repeat(espacios) + linea.trim());
   });
-  console.log(""); // Salto de línea final estético
+  console.log("");
 }
 
 async function buscarImagen(query) {
@@ -494,7 +493,6 @@ function getFechaHoraPorNumero(jid, msg = null) {
   try {
     let jidReal = jid || "";
 
-    // 1. Extraer el JID real (@s.whatsapp.net) desde múltiples estructuras de Baileys
     if (msg) {
       const candidateJids = [
         msg.key?.participantAlt,
@@ -517,10 +515,8 @@ function getFechaHoraPorNumero(jid, msg = null) {
       }
     }
 
-    // 2. Extraer dígitos limpios del número telefónico
     let numeroLimpio = jidReal.split("@")[0].split(":")[0].replace(/\D/g, "");
 
-    // 3. Verificar si el usuario ya existe registrado en la Base de Datos con su país
     const usuarioBD = db
       .prepare(
         "SELECT pais FROM usuarios WHERE jid = ? OR jid = ? OR numero = ?",
@@ -528,7 +524,6 @@ function getFechaHoraPorNumero(jid, msg = null) {
       .get(jid, jidReal, numeroLimpio);
 
     if (usuarioBD && usuarioBD.pais) {
-      // Buscar la zona horaria correspondiente al código ISO de país registrado
       const matchBD = COUNTRY_PREFIX_MAP.find(
         (c) => c.country === usuarioBD.pais,
       );
@@ -542,14 +537,11 @@ function getFechaHoraPorNumero(jid, msg = null) {
       }
     }
 
-    // 4. Identificar si es un LID (identificador de privacidad interno de WhatsApp)
     const esLid =
       jidReal.endsWith("@lid") ||
       (numeroLimpio.startsWith("75") && numeroLimpio.length > 13);
 
-    // 5. Si es un número telefónico real (no un LID)
     if (!esLid && numeroLimpio) {
-      // A) Buscar coincidencia directa en COUNTRY_PREFIX_MAP (ordenado por prefijos largos primero)
       const coincidencia = COUNTRY_PREFIX_MAP.find((item) =>
         numeroLimpio.startsWith(item.prefix),
       );
@@ -561,10 +553,9 @@ function getFechaHoraPorNumero(jid, msg = null) {
         );
       }
 
-      // B) Validación y detección automática internacional con libphonenumber-js
       const phoneNumber = parsePhoneNumberFromString("+" + numeroLimpio);
       if (phoneNumber && phoneNumber.isValid() && phoneNumber.country) {
-        const paisDetectado = phoneNumber.country; // Ej: "AR", "ES", "CO", "US", etc.
+        const paisDetectado = phoneNumber.country;
         const timezones = ct.getTimezonesForCountry(paisDetectado);
         const tz =
           timezones && timezones.length > 0 ? timezones[0].name : "UTC";
@@ -572,7 +563,6 @@ function getFechaHoraPorNumero(jid, msg = null) {
       }
     }
 
-    // 6. Respaldo por defecto para LIDs sin asociar o prefijos desconocidos (UTC o América/México)
     return obtenerFechaHoraRespuesta("MX", "America/Mexico_City");
   } catch (error) {
     console.error("Error al detectar fecha/hora por número:", error);
@@ -616,6 +606,76 @@ function saveWarns(data) {
   fs.writeFileSync(WARN_FILE, JSON.stringify(data, null, 2));
 }
 
+// Función auxiliar para procesar sanciones por insultos
+async function processarSancionInsulto(sock, from, sender, senderNumber, isGroup, msg) {
+  let warns = loadWarns();
+  const targetKey = `insultos_${from}`;
+  if (!warns[targetKey]) warns[targetKey] = {};
+  if (!warns[targetKey][sender]) warns[targetKey][sender] = { count: 0, reasons: [] };
+
+  warns[targetKey][sender].count += 1;
+  warns[targetKey][sender].reasons.push("Uso de lenguaje ofensivo / groserías");
+  saveWarns(warns);
+
+  const count = warns[targetKey][sender].count;
+
+  // Intentar eliminar el mensaje ofensivo si el bot puede
+  try {
+    await sock.sendMessage(from, { delete: msg.key });
+  } catch (e) {}
+
+  if (count >= 3) {
+    if (isGroup) {
+      const meta = await sock.groupMetadata(from);
+      const esBotAdmin = isBotAdminCheck(meta.participants, sock);
+
+      await sock.sendMessage(
+        from,
+        {
+          text: `🚫 *LÍMITE DE FALTAS ALCANZADO*\n\n@${senderNumber} acumuló 3 advertencias por insultos. Procedo a retirarlo del grupo.`,
+          mentions: [sender],
+          contextInfo: Marca_SicariOfc,
+        },
+        { quoted: msg }
+      );
+
+      if (esBotAdmin) {
+        try {
+          await sock.groupParticipantsUpdate(from, [sender], "remove");
+        } catch (e) {}
+      }
+    } else {
+      // Bloqueo real en chat privado guardándolo en SQLite
+      db.prepare("INSERT OR IGNORE INTO bloqueos_privados (jid) VALUES (?)").run(sender);
+
+      await sock.sendMessage(
+        from,
+        {
+          text: `🚫 *BLOQUEO DE SEGURIDAD PERMANENTE*\n\nHas acumulado 3 advertencias por faltar al respeto en el chat privado. Has sido bloqueado y ya no responderé a tus mensajes.`,
+        },
+        { quoted: msg }
+      );
+    }
+
+    // Limpiar completamente el registro del usuario en warns.json
+    delete warns[targetKey][sender];
+    if (Object.keys(warns[targetKey]).length === 0) {
+      delete warns[targetKey];
+    }
+    saveWarns(warns);
+  } else {
+    await sock.sendMessage(
+      from,
+      {
+        text: `⚠️ *ADVERTENCIA DE COMPORTAMIENTO (${count}/3)*\n\n@${senderNumber}, por favor modera tu lenguaje. Acumular 3 advertencias provocará tu ${isGroup ? "expulsión del grupo" : "bloqueo permanente"}.`,
+        mentions: [sender],
+        contextInfo: Marca_SicariOfc,
+      },
+      { quoted: msg }
+    );
+  }
+}
+
 // Conexión a WhatsApp Bot
 async function connectToWhatsApp(isReconnect = false) {
   mostrarBannerConsole();
@@ -630,7 +690,6 @@ async function connectToWhatsApp(isReconnect = false) {
   let usePairingCode = false;
   let phoneNumber = "";
 
-  // Solo pedir menú si NO existe sesión previa y NO es una reconexión automática de socket
   if (!hasSession && !isReconnect) {
     const lineasMenu = [
       "Selecciona el método de vinculación:",
@@ -756,9 +815,8 @@ async function connectToWhatsApp(isReconnect = false) {
   sock.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect, qr } = update;
 
-    // --- CENTRAR EL CÓDIGO QR AUTOMÁTICAMENTE EN LA TERMINAL ---
     if (qr && !usePairingCode && !hasSession) {
-      console.log(""); // Espacio estético previo
+      console.log(""); 
       qrcode.generate(qr, { small: true }, (qrcodeStr) => {
         const lineasQr = qrcodeStr.split("\n");
         lineasQr.forEach((linea) => {
@@ -821,48 +879,60 @@ async function connectToWhatsApp(isReconnect = false) {
 
   sock.ev.on("creds.update", saveCreds);
 
-
+  // --- EVENTO DE PARTICIPANTES (BIENVENIDA Y DESPEDIDA CON FRASES DIVERTIDAS) ---
   sock.ev.on("group-participants.update", async (update) => {
     try {
       const { id: groupJid, participants, action } = update;
 
-      // Obtener configuración del grupo en la base de datos
       const config = db
         .prepare(
           "SELECT bienvenida, despedida FROM grupos_config WHERE jid = ?",
         )
         .get(groupJid);
 
-      // Si no hay configuración o ambas opciones están desactivadas, no hacer nada
       if (!config || (config.bienvenida === 0 && config.despedida === 0))
         return;
 
       const groupMetadata = await sock.groupMetadata(groupJid);
       const groupName = groupMetadata.subject;
-      // Obtener la descripción del grupo (o mostrar un mensaje por defecto si está vacía)
       const groupDesc = groupMetadata.desc
         ? groupMetadata.desc.toString()
         : "Sin descripción disponible.";
 
+      // --- ARRAYS DE MENSAJES DIVERTIDOS ---
+      const frasesBienvenida = [
+        `👋 ¡Miren todos! Llegó @{userNumber}. Por favor, actúen como personas normales durante 5 minutos.`,
+        `🚨 ¡Alerta de nuevo humano detectado! Bienvenido @{userNumber}. Trae botanas o el administrador te baneará. 🍟`,
+        `🤠 ¡Epa @{userNumber}! Entraste bajo tu propio riesgo a *${groupName}*. Acomódate y saca el chisme.`,
+        `🥳 ¡Por fin alguien con buena vibra! Bienvenido/a @{userNumber}. Aquí todos estamos locos, pero te va a encantar.`
+      ];
+
+      const frasesDespedida = [
+        `🚪 Alguien no aguantó el estilo neutrón... @{userNumber} ha abandonado el barco. ¡Nos vemos en el próximo reinicio! 🤖`,
+        `💸 Se nos fue @{userNumber}. Seguro se enteró de que aquí cobramos renta por estar en el grupo.`,
+        `🏃‍♂️ ¡Soldado caído! @{userNumber} aplicó la de "ir por cigarros" y no volvió. Se le extrañará... o tal vez no. 🤔`,
+        `👋 @{userNumber} ha salido del grupo. Dejemos un minuto de silencio... Bueno, ya pasó, ¿quién tiene hambre?`
+      ];
+
       for (const num of participants) {
         const userNumber = num.split("@")[0].replace(/\D/g, "");
 
-        // Intentar obtener la foto de perfil del USUARIO
         let userPic;
         try {
           userPic = await sock.profilePictureUrl(num, "image");
         } catch {
-          // Si el usuario no tiene foto de perfil o la tiene privada, se usa la foto por defecto del bot
           userPic = "./img/cobrakai_menu.png";
         }
 
         // --- BIENVENIDA (action === 'add') ---
         if (action === "add" && config.bienvenida === 1) {
+          const fraseRandomAdd = frasesBienvenida[Math.floor(Math.random() * frasesBienvenida.length)].replace(/\{userNumber\}/g, userNumber);
+
           const textoBienvenida =
             `┌───  *¡BIENVENIDO/A!*  ───┐\n` +
             `│\n` +
-            `├  👋 Hola @${userNumber}\n` +
-            `├  📌 Bienvenido a *${groupName}*\n` +
+            `├  ${fraseRandomAdd}\n` +
+            `├  📌 Estás en: *${groupName}*\n` +
             `│\n` +
             `├───  *DESCRIPCIÓN Y REGLAS*  ───\n` +
             `│\n` +
@@ -890,11 +960,13 @@ async function connectToWhatsApp(isReconnect = false) {
 
         // --- DESPEDIDA (action === 'remove') ---
         if (action === "remove" && config.despedida === 1) {
+          const fraseRandomRemove = frasesDespedida[Math.floor(Math.random() * frasesDespedida.length)].replace(/\{userNumber\}/g, userNumber);
+
           const textoDespedida =
             `┌───  *¡HASTA LUEGO!*  ───┐\n` +
             `│\n` +
-            `├  👋 El usuario @${userNumber} ha salido del grupo.\n` +
-            `├  📌 *${groupName}*\n` +
+            `├  ${fraseRandomRemove}\n` +
+            `├  📌 Grupo: *${groupName}*\n` +
             `│\n` +
             `└────────────────────────┘`;
 
@@ -923,6 +995,17 @@ async function connectToWhatsApp(isReconnect = false) {
       const from = msg.key.remoteJid;
       const isGroup = from.endsWith("@g.us");
 
+      //Agregamos filtro para bloquear usuario por insulto
+      const sender = msg.key.participant || from;
+
+      // --- FILTRO DE BLOQUEO PRIVADO ---
+      if (!isGroup) {
+        const estaBloqueado = db.prepare("SELECT jid FROM bloqueos_privados WHERE jid = ?").get(sender);
+        if (estaBloqueado) {
+          continue; // Ignora por completo cualquier mensaje o comando de este usuario
+        }
+      }
+
       const body =
         msg.message.conversation ||
         msg.message.extendedTextMessage?.text ||
@@ -932,9 +1015,95 @@ async function connectToWhatsApp(isReconnect = false) {
       const args = body.trim().split(/ +/);
       const command = args.shift().toLowerCase();
 
-      const sender = msg.key.participant || from;
       const senderNumber = sender.split("@")[0].replace(/\D/g, "");
       const pushName = msg.pushName || "Usuario";
+
+      // --- SISTEMA ANTILINK AUTOMÁTICO ---
+      if (isGroup) {
+        const configGrupo = db
+          .prepare("SELECT antilink FROM grupos_config WHERE jid = ?")
+          .get(from);
+
+        if (configGrupo && configGrupo.antilink === 1) {
+          const linkWhatsappRegex = /chat\.whatsapp\.com\/[a-zA-Z0-9]{20,26}/i;
+
+          if (linkWhatsappRegex.test(body)) {
+            const meta = await sock.groupMetadata(from);
+            const esSenderAdmin = isSenderAdminCheck(meta.participants, sender);
+
+            if (!esSenderAdmin) {
+              const esBotAdmin = isBotAdminCheck(meta.participants, sock);
+
+              try {
+                await sock.sendMessage(from, { delete: msg.key });
+              } catch (e) {}
+
+              if (esBotAdmin) {
+                try {
+                  await sock.groupParticipantsUpdate(from, [sender], "remove");
+                  await sock.sendMessage(
+                    from,
+                    {
+                      text: `🚫 *ANTILINK ACTIVADO*\n\nEl usuario @${senderNumber} ha sido eliminado por enviar enlaces de otros grupos de WhatsApp.`,
+                      mentions: [sender],
+                      contextInfo: Marca_SicariOfc,
+                    }
+                  );
+                } catch (e) {
+                  console.error("Error al expulsar usuario por AntiLink:", e);
+                }
+              } else {
+                await sock.sendMessage(from, {
+                  text: `⚠️ *ENLACE DETECTADO*\n\n@${senderNumber} envió un enlace pero no puedo eliminarlo porque no soy administrador del grupo.`,
+                  mentions: [sender],
+                });
+              }
+              continue; 
+            }
+          }
+        }
+      }
+
+      // --- SISTEMA ANTIINSULTOS INTELIGENTE (PRIVADO Y GRUPOS) ---
+      let aplicarAntiInsultos = false;
+      if (isGroup) {
+        const confG = db.prepare("SELECT antiinsultos FROM grupos_config WHERE jid = ?").get(from);
+        if (confG && confG.antiinsultos === 1) {
+          aplicarAntiInsultos = true;
+        }
+      } else {
+        aplicarAntiInsultos = true; // En privado siempre activo por seguridad
+      }
+
+      if (aplicarAntiInsultos) {
+       const insultosGenerales = [
+          "estupido", "Estupido", "estúpida", "Estúpida", "estupidos", "Estupidos", "estúpidos", "Estúpidos", "idiota", "Idiota",
+          "imbecil", "Imbecil", "imbécil", "Imbécil", "imbeciles", "Imbeciles", "imbéciles", "Imbéciles", "pendejo", "Pendejo",
+          "pendeja", "Pendeja", "pendejos", "Pendejos", "pendejas", "Pendejas", "puto", "Puto", "puta", "Puta",
+          "putos", "Putos", "putas", "Putas", "mierda", "Mierda",
+          "cabron", "Cabrón", "cabrones", "Cabrones", "zorra", "Zorra",
+          "zorras", "Zorras", "basura", "Basura","basuras", "Basuras",
+         "culero", "Culero", "culera", "Culera", "culeros", "Culeros",
+         "verga", "Verga", "chinga", "Chinga","chingada", "Chingada", "estúpido", "Estúpido",
+         "pendej", "Pendej", "imbéc", "Imbéc", "idiot", "Idiot", "estupid", "Estupid", "malparido", "Malparido", "hijodeputa", "Hijodeputa", "hdp"
+        ];
+
+        const textoLimpio = body.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const contieneGroseria = insultosGenerales.some(groseria => textoLimpio.includes(groseria));
+
+        if (contieneGroseria) {
+          if (isGroup) {
+            const meta = await sock.groupMetadata(from);
+            if (!isSenderAdminCheck(meta.participants, sender)) {
+              await processarSancionInsulto(sock, from, sender, senderNumber, isGroup, msg);
+              continue;
+            }
+          } else {
+            await processarSancionInsulto(sock, from, sender, senderNumber, isGroup, msg);
+            continue;
+          }
+        }
+      }
 
       const comandosProtegidos = [
         "/mtmanag",
@@ -1096,7 +1265,6 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
           msg,
         );
 
-        // Calcular tiempo activo (Uptime)
         const uptimeMs = Date.now() - startTimeBot;
         const segundos = Math.floor((uptimeMs / 1000) % 60);
         const minutos = Math.floor((uptimeMs / (1000 * 60)) % 60);
@@ -1104,7 +1272,6 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         const dias = Math.floor(uptimeMs / (1000 * 60 * 60 * 24));
         const uptimeTexto = `${dias}d ${horas}h ${minutos}m ${segundos}s`;
 
-        // Estado del bot (si está respondiendo este mensaje, el socket está conectado)
         const estadoConexion = "🟢 Conectado";
 
         const respuestaEstado =
@@ -1537,7 +1704,6 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
           sender,
           msg,
         );
-        // VERIFICAR HORA Y PAIS EN TU CONSOLA:
         console.log(
           `[MENU] Solicitado por ${senderNumber} | País: ${pais} | Zona: ${timeZone} | Hora: ${horaReal}`,
         );
@@ -1564,6 +1730,8 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
           `├ • /welcome <on/off> - Activar/desactivar bienvenida\n` +
           `├ • /goodbye <on/off> - Activar/desactivar despedida\n` +
           `├ • /revoke - Resetear link\n` +
+          `├ • /antilink <on/off> - Activar/desactivar link\n` +
+          `├ • /antiinsultos <on/off> - Activar/desactivar insultos\n` +
           `├ • /open - Abrir grupo\n` +
           `├ • /close - Cerrar grupo\n` +
           `├ • /setname <text> - Edit nombre\n` +
@@ -1702,7 +1870,7 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
           const textoRespuesta =
             action === "promote"
               ? `✔️ @${target.split("@")[0]} ahora es administrador.`
-              : `✔️️ @${target.split("@")[0]} ya no es administrador.`;
+              : `✔ @${target.split("@")[0]} ya no es administrador.`;
 
           await sock.sendMessage(
             from,
@@ -1750,7 +1918,7 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         if (opcion !== "on" && opcion !== "off") {
           return sock.sendMessage(
             from,
-            { text: "⚠️️ Uso correcto: */welcome on* o */welcome off*" },
+            { text: "⚠ Uso correcto: */welcome on* o */welcome off*" },
             { quoted: msg },
           );
         }
@@ -1820,7 +1988,7 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         if (!isGroup) {
           return sock.sendMessage(
             from,
-            { text: "⚠️️Solo grupos" },
+            { text: "⚠Solo grupos" },
             { quoted: msg },
           );
         }
@@ -1848,6 +2016,109 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
           },
           { quoted: msg },
         );
+      }
+
+      if (command === "/antilink") {
+        if (!isGroup) {
+          return sock.sendMessage(
+            from,
+            { text: "⚠️ Este comando solo se puede utilizar dentro de un grupo." },
+            { quoted: msg }
+          );
+        }
+
+        const meta = await sock.groupMetadata(from);
+        if (!isSenderAdminCheck(meta.participants, sender)) {
+          return sock.sendMessage(
+            from,
+            { text: "❌ Solo los administradores del grupo pueden configurar el AntiLink." },
+            { quoted: msg }
+          );
+        }
+
+        const opcion = args[0]?.toLowerCase();
+        if (opcion !== "on" && opcion !== "off") {
+          return sock.sendMessage(
+            from,
+            { text: "⚠️ *Uso correcto:*\n\n• */antilink on* (Activa la protección)\n• */antilink off* (Desactiva la protección)" },
+            { quoted: msg }
+          );
+        }
+
+        const estado = opcion === "on" ? 1 : 0;
+
+        db.prepare(
+          `INSERT INTO grupos_config (jid, antilink) VALUES (?, ?) 
+           ON CONFLICT(jid) DO UPDATE SET antilink = ?`
+        ).run(from, estado, estado);
+
+        if (estado === 1) {
+          const textoActivo = 
+            `🛡️ *PROTECCIÓN ANTILINK ACTIVADA* 🛡️\n\n` +
+            `Queda estrictamente *prohibido* enviar enlaces de invitación a otros grupos de WhatsApp.\n\n` +
+            `⚠️ *Advertencia:* Quien envíe un enlace será eliminado automáticamente del grupo.`;
+
+          await sock.sendMessage(
+            from,
+            { text: textoActivo, contextInfo: Marca_SicariOfc },
+            { quoted: msg }
+          );
+        } else {
+          await sock.sendMessage(
+            from,
+            { text: "🔴 *AntiLink desactivado.* Ahora se permiten enlaces en el grupo." },
+            { quoted: msg }
+          );
+        }
+      }
+
+      if (command === "/antiinsultos") {
+        if (!isGroup) {
+          return sock.sendMessage(
+            from,
+            { text: "⚠️ Este comando solo se puede utilizar dentro de un grupo." },
+            { quoted: msg }
+          );
+        }
+
+        const meta = await sock.groupMetadata(from);
+        if (!isSenderAdminCheck(meta.participants, sender)) {
+          return sock.sendMessage(
+            from,
+            { text: "❌ Solo los administradores del grupo pueden configurar el AntiInsultos." },
+            { quoted: msg }
+          );
+        }
+
+        const opcion = args[0]?.toLowerCase();
+        if (opcion !== "on" && opcion !== "off") {
+          return sock.sendMessage(
+            from,
+            { text: "⚠️ *Uso correcto:*\n\n• */antiinsultos on* (Activa la protección)\n• */antiinsultos off* (Desactiva la protección)" },
+            { quoted: msg }
+          );
+        }
+
+        const estado = opcion === "on" ? 1 : 0;
+
+        db.prepare(
+          `INSERT INTO grupos_config (jid, antiinsultos) VALUES (?, ?) 
+           ON CONFLICT(jid) DO UPDATE SET antiinsultos = ?`
+        ).run(from, estado, estado);
+
+        if (estado === 1) {
+          await sock.sendMessage(
+            from,
+            { text: "🛡️ *PROTECCIÓN ANTIINSULTOS ACTIVADA*\n\nEl bot vigilará el chat y advertirá a quienes usen lenguaje ofensivo.", contextInfo: Marca_SicariOfc },
+            { quoted: msg }
+          );
+        } else {
+          await sock.sendMessage(
+            from,
+            { text: "🔴 *AntiInsultos desactivado.*" },
+            { quoted: msg }
+          );
+        }
       }
 
       if (command === "/open" || command === "/close") {
@@ -1941,7 +2212,7 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
           return sock.sendMessage(
             from,
             {
-              text: "⚠️️Escribe la nueva descripción del grupo\nEjemplo: /setdesc NuevaDescripción",
+              text: "⚠Escribe la nueva descripción del grupo\nEjemplo: /setdesc NuevaDescripción",
             },
             { quoted: msg },
           );
@@ -2195,7 +2466,6 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
           sender,
           msg,
         );
-        // VERIFICAR HORA Y PAIS EN TU CONSOLA:
         console.log(
           `[MENU] Solicitado por ${senderNumber} | País: ${pais} | Zona: ${timeZone} | Hora: ${horaReal}`,
         );
@@ -2352,6 +2622,50 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
             continue;
           }
 
+          // 1. Descargar la miniatura/foto de perfil del video de YouTube
+          let thumbnailBuffer = null;
+          if (video.thumbnail) {
+            try {
+              thumbnailBuffer = await descargarImagenBuffer(video.thumbnail);
+            } catch (e) {
+              console.error("No se pudo descargar la miniatura de YouTube:", e.message);
+            }
+          }
+
+          // 2. Construir la información detallada con la marca de agua
+          const textoDetalles = 
+            `🎵 *INFORMACIÓN DE LA CANCIÓN* 🎵\n\n` +
+            `📌 *Título:* ${video.title}\n` +
+            `📅 *Fecha de subida:* ${video.ago || "No disponible"}\n` +
+            `⏱️ *Duración:* ${video.timestamp}\n` +
+            `👁️ *Vistas:* ${video.views ? video.views.toLocaleString() : "Desconocido"}\n` +
+            `🔗 *URL:* ${video.url}\n\n` +
+            `_Enviando archivo de audio, por favor espera..._`;
+
+          // 3. Enviar primero la imagen con los datos y la marca de agua superior/inferior
+          if (thumbnailBuffer) {
+            await sock.sendMessage(
+              from,
+              {
+                image: thumbnailBuffer,
+                caption: textoDetalles,
+                contextInfo: Marca_SicariOfc, 
+              },
+              { quoted: msg }
+            );
+          } else {
+            // Si por alguna razón falla la miniatura, manda un mensaje de texto con los datos
+            await sock.sendMessage(
+              from,
+              {
+                text: textoDetalles,
+                contextInfo: Marca_SicariOfc,
+              },
+              { quoted: msg }
+            );
+          }
+
+          // 4. Descargar el archivo de audio usando ytdlp-exec
           await ytdlpExec(video.url, {
             extractAudio: true,
             audioFormat: "mp3",
@@ -2367,13 +2681,13 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
 
           const audioBuffer = fs.readFileSync(tempFilePath);
 
+          // 5. Enviar el archivo de audio final
           await sock.sendMessage(
             from,
             {
               audio: audioBuffer,
               mimetype: "audio/mp4",
               fileName: `${video.title}.mp3`,
-              caption: `🎵 *${video.title}*\n⏱️ *Duración:* ${video.timestamp}\n🔗 ${video.url}`,
               contextInfo: Marca_SicariOfc,
             },
             { quoted: msg },
@@ -2447,6 +2761,49 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
             continue;
           }
 
+          // 1. Descargar la miniatura/portada del video de YouTube
+          let thumbnailBuffer = null;
+          if (video.thumbnail) {
+            try {
+              thumbnailBuffer = await descargarImagenBuffer(video.thumbnail);
+            } catch (e) {
+              console.error("No se pudo descargar la miniatura del video:", e.message);
+            }
+          }
+
+          // 2. Construir la información detallada con la marca de agua de CobraKaiBot
+          const textoDetalles = 
+            `🎥 *INFORMACIÓN DEL VIDEO* 🎥\n\n` +
+            `📌 *Título:* ${video.title}\n` +
+            `📅 *Fecha de subida:* ${video.ago || "No disponible"}\n` +
+            `⏱️ *Duración:* ${video.timestamp}\n` +
+            `👁️ *Vistas:* ${video.views ? video.views.toLocaleString() : "Desconocido"}\n` +
+            `🔗 *URL:* ${video.url}\n\n` +
+            `_Descargando y enviando archivo de video, por favor espera..._`;
+
+          // 3. Enviar primero la miniatura con los datos y la marca de agua superior/inferior
+          if (thumbnailBuffer) {
+            await sock.sendMessage(
+              from,
+              {
+                image: thumbnailBuffer,
+                caption: textoDetalles,
+                contextInfo: Marca_SicariOfc, // Marca de agua institucional CobraKaiBot
+              },
+              { quoted: msg }
+            );
+          } else {
+            await sock.sendMessage(
+              from,
+              {
+                text: textoDetalles,
+                contextInfo: Marca_SicariOfc,
+              },
+              { quoted: msg }
+            );
+          }
+
+          // 4. Descargar el archivo de video MP4 usando ytdlp-exec
           await ytdlpExec(video.url, {
             format:
               "bestvideo[vcodec^=avc1][height<=720]+bestaudio[acodec^=mp4a]/bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4]/best",
@@ -2462,12 +2819,14 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
 
           const videoBuffer = fs.readFileSync(tempFilePath);
 
+          // 5. Enviar el archivo de video final con su respectiva marca de agua
           await sock.sendMessage(
             from,
             {
               video: videoBuffer,
               mimetype: "video/mp4",
-              caption: `🎥 *${video.title}*\n⏱️ *Duración:* ${video.timestamp}\n🔗 ${video.url}`,
+              caption: `🎥 *${video.title}*`,
+              contextInfo: Marca_SicariOfc,
             },
             { quoted: msg },
           );
@@ -2672,7 +3031,7 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
           );
           await sock.sendMessage(
             from,
-            { image: buffer, caption: "🖼️ Aquí tienes tu imagen:" },
+            { image: buffer, caption: "🖼️ Aquí tienes tu sticker convertido a imagen\n creada por CobraKaiBot🤖" },
             { quoted: msg },
           );
         } catch (e) {
@@ -2704,14 +3063,12 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         );
 
         try {
-          // Importar Jimp
           const JimpModule = await import("jimp");
           const Jimp = JimpModule.default || JimpModule;
 
           const width = 512;
           const height = 512;
 
-          // Lienzo base transparente
           const image = await new Promise((resolve, reject) => {
             new Jimp(width, height, 0x00000000, (err, img) => {
               if (err) reject(err);
@@ -2719,18 +3076,14 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
             });
           });
 
-          // Detectar si el texto contiene acentos, eñes o caracteres fuera de A-Z, a-z, 0-9 y espacios básicos
-          // Tu fuente personalizada solo tiene a-z, A-Z y 0-9. Cualquier acento (á, é, í, ó, ú, ñ) activará el respaldo.
           const tieneCaracteresEspeciales = /[^\w\s]/i.test(textoSticker);
 
           let customFontWhite, customFontBlack;
 
           if (tieneCaracteresEspeciales) {
-            // Respaldo automático porque el texto tiene acentos o símbolos que tu .fnt no soporta
             customFontWhite = await Jimp.loadFont(Jimp.FONT_SANS_64_WHITE);
             customFontBlack = await Jimp.loadFont(Jimp.FONT_SANS_64_BLACK);
           } else {
-            // Intentar cargar tu fuente personalizada si el texto es totalmente compatible (A-Z, a-z, 0-9)
             try {
               const fontPath = path.join(
                 process.cwd(),
@@ -2740,13 +3093,11 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
               customFontWhite = await Jimp.loadFont(fontPath);
               customFontBlack = customFontWhite;
             } catch (e) {
-              // Respaldo de seguridad en caso de error de lectura de archivo
               customFontWhite = await Jimp.loadFont(Jimp.FONT_SANS_64_WHITE);
               customFontBlack = await Jimp.loadFont(Jimp.FONT_SANS_64_BLACK);
             }
           }
 
-          // Función inteligente de envoltura de texto (Word Wrap automático)
           function wrapText(text, maxCharsPerLine = 16) {
             const words = text.split(" ");
             let lines = [];
@@ -2781,7 +3132,6 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
           const finalText = wrapText(textoSticker, 16);
           const maxWidth = 450;
 
-          // 1. DIBUJAR BORDE NEGRO
           for (let dx = -4; dx <= 4; dx += 4) {
             for (let dy = -4; dy <= 4; dy += 4) {
               if (dx === 0 && dy === 0) continue;
@@ -2800,7 +3150,6 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
             }
           }
 
-          // 2. CREAR CAPA DE TEXTO
           const textLayer = await new Promise((resolve, reject) => {
             new Jimp(width, height, 0x00000000, (err, img) => {
               if (err) reject(err);
@@ -2821,15 +3170,14 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
             height - 62,
           );
 
-          // 3. APLICAR DEGRADADO DE COLOR
           textLayer.scan(0, 0, width, height, function (x, y, idx) {
             const alpha = this.bitmap.data[idx + 3];
             if (alpha > 10) {
               const ratio = y / height;
-              this.bitmap.data[idx] = 255 * (1 - ratio) + 80 * ratio; // Rojo
-              this.bitmap.data[idx + 1] = 50 + ratio * 100; // Verde
-              this.bitmap.data[idx + 2] = 255; // Azul
-              this.bitmap.data[idx + 3] = 255; // Alpha
+              this.bitmap.data[idx] = 255 * (1 - ratio) + 80 * ratio;
+              this.bitmap.data[idx + 1] = 50 + ratio * 100;
+              this.bitmap.data[idx + 2] = 255;
+              this.bitmap.data[idx + 3] = 255;
             }
           });
 
