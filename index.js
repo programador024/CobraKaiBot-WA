@@ -624,11 +624,19 @@ function saveWarns(data) {
 }
 
 // Función auxiliar para procesar sanciones por insultos
-async function processarSancionInsulto(sock, from, sender, senderNumber, isGroup, msg) {
+async function processarSancionInsulto(
+  sock,
+  from,
+  sender,
+  senderNumber,
+  isGroup,
+  msg,
+) {
   let warns = loadWarns();
   const targetKey = `insultos_${from}`;
   if (!warns[targetKey]) warns[targetKey] = {};
-  if (!warns[targetKey][sender]) warns[targetKey][sender] = { count: 0, reasons: [] };
+  if (!warns[targetKey][sender])
+    warns[targetKey][sender] = { count: 0, reasons: [] };
 
   warns[targetKey][sender].count += 1;
   warns[targetKey][sender].reasons.push("Uso de lenguaje ofensivo / groserías");
@@ -653,7 +661,7 @@ async function processarSancionInsulto(sock, from, sender, senderNumber, isGroup
           mentions: [sender],
           contextInfo: Marca_SicariOfc,
         },
-        { quoted: msg }
+        { quoted: msg },
       );
 
       if (esBotAdmin) {
@@ -663,14 +671,16 @@ async function processarSancionInsulto(sock, from, sender, senderNumber, isGroup
       }
     } else {
       // Bloqueo real en chat privado guardándolo en SQLite
-      db.prepare("INSERT OR IGNORE INTO bloqueos_privados (jid) VALUES (?)").run(sender);
+      db.prepare(
+        "INSERT OR IGNORE INTO bloqueos_privados (jid) VALUES (?)",
+      ).run(sender);
 
       await sock.sendMessage(
         from,
         {
           text: `🚫 *BLOQUEO DE SEGURIDAD PERMANENTE*\n\nHas acumulado 3 advertencias por faltar al respeto en el chat privado. Has sido bloqueado y ya no responderé a tus mensajes.`,
         },
-        { quoted: msg }
+        { quoted: msg },
       );
     }
 
@@ -688,7 +698,7 @@ async function processarSancionInsulto(sock, from, sender, senderNumber, isGroup
         mentions: [sender],
         contextInfo: Marca_SicariOfc,
       },
-      { quoted: msg }
+      { quoted: msg },
     );
   }
 }
@@ -835,7 +845,7 @@ async function connectToWhatsApp(isReconnect = false) {
     const { connection, lastDisconnect, qr } = update;
 
     if (qr && !usePairingCode && !hasSession) {
-      console.log(""); 
+      console.log("");
       qrcode.generate(qr, { small: true }, (qrcodeStr) => {
         const lineasQr = qrcodeStr.split("\n");
         lineasQr.forEach((linea) => {
@@ -923,14 +933,14 @@ async function connectToWhatsApp(isReconnect = false) {
         `👋 ¡Miren todos! Llegó @{userNumber}. Por favor, actúen como personas normales durante 5 minutos.`,
         `🚨 ¡Alerta de nuevo humano detectado! Bienvenido @{userNumber}. Trae botanas o el administrador te baneará. 🍟`,
         `🤠 ¡Epa @{userNumber}! Entraste bajo tu propio riesgo a *${groupName}*. Acomódate y saca el chisme.`,
-        `🥳 ¡Por fin alguien con buena vibra! Bienvenido/a @{userNumber}. Aquí todos estamos locos, pero te va a encantar.`
+        `🥳 ¡Por fin alguien con buena vibra! Bienvenido/a @{userNumber}. Aquí todos estamos locos, pero te va a encantar.`,
       ];
 
       const frasesDespedida = [
         `🚪 Alguien no aguantó el estilo neutrón... @{userNumber} ha abandonado el barco. ¡Nos vemos en el próximo reinicio! 🤖`,
         `💸 Se nos fue @{userNumber}. Seguro se enteró de que aquí cobramos renta por estar en el grupo.`,
         `🏃‍♂️ ¡Soldado caído! @{userNumber} aplicó la de "ir por cigarros" y no volvió. Se le extrañará... o tal vez no. 🤔`,
-        `👋 @{userNumber} ha salido del grupo. Dejemos un minuto de silencio... Bueno, ya pasó, ¿quién tiene hambre?`
+        `👋 @{userNumber} ha salido del grupo. Dejemos un minuto de silencio... Bueno, ya pasó, ¿quién tiene hambre?`,
       ];
 
       for (const num of participants) {
@@ -945,7 +955,9 @@ async function connectToWhatsApp(isReconnect = false) {
 
         // --- BIENVENIDA (action === 'add') ---
         if (action === "add" && config.bienvenida === 1) {
-          const fraseRandomAdd = frasesBienvenida[Math.floor(Math.random() * frasesBienvenida.length)].replace(/\{userNumber\}/g, userNumber);
+          const fraseRandomAdd = frasesBienvenida[
+            Math.floor(Math.random() * frasesBienvenida.length)
+          ].replace(/\{userNumber\}/g, userNumber);
 
           const textoBienvenida =
             `┌───  *¡BIENVENIDO/A!*  ───┐\n` +
@@ -979,7 +991,9 @@ async function connectToWhatsApp(isReconnect = false) {
 
         // --- DESPEDIDA (action === 'remove') ---
         if (action === "remove" && config.despedida === 1) {
-          const fraseRandomRemove = frasesDespedida[Math.floor(Math.random() * frasesDespedida.length)].replace(/\{userNumber\}/g, userNumber);
+          const fraseRandomRemove = frasesDespedida[
+            Math.floor(Math.random() * frasesDespedida.length)
+          ].replace(/\{userNumber\}/g, userNumber);
 
           const textoDespedida =
             `┌───  *¡HASTA LUEGO!*  ───┐\n` +
@@ -1019,7 +1033,9 @@ async function connectToWhatsApp(isReconnect = false) {
 
       // --- FILTRO DE BLOQUEO PRIVADO ---
       if (!isGroup) {
-        const estaBloqueado = db.prepare("SELECT jid FROM bloqueos_privados WHERE jid = ?").get(sender);
+        const estaBloqueado = db
+          .prepare("SELECT jid FROM bloqueos_privados WHERE jid = ?")
+          .get(sender);
         if (estaBloqueado) {
           continue; // Ignora por completo cualquier mensaje o comando de este usuario
         }
@@ -1060,14 +1076,11 @@ async function connectToWhatsApp(isReconnect = false) {
               if (esBotAdmin) {
                 try {
                   await sock.groupParticipantsUpdate(from, [sender], "remove");
-                  await sock.sendMessage(
-                    from,
-                    {
-                      text: `🚫 *ANTILINK ACTIVADO*\n\nEl usuario @${senderNumber} ha sido eliminado por enviar enlaces de otros grupos de WhatsApp.`,
-                      mentions: [sender],
-                      contextInfo: Marca_SicariOfc,
-                    }
-                  );
+                  await sock.sendMessage(from, {
+                    text: `🚫 *ANTILINK ACTIVADO*\n\nEl usuario @${senderNumber} ha sido eliminado por enviar enlaces de otros grupos de WhatsApp.`,
+                    mentions: [sender],
+                    contextInfo: Marca_SicariOfc,
+                  });
                 } catch (e) {
                   console.error("Error al expulsar usuario por AntiLink:", e);
                 }
@@ -1077,7 +1090,7 @@ async function connectToWhatsApp(isReconnect = false) {
                   mentions: [sender],
                 });
               }
-              continue; 
+              continue;
             }
           }
         }
@@ -1086,7 +1099,9 @@ async function connectToWhatsApp(isReconnect = false) {
       // --- SISTEMA ANTIINSULTOS INTELIGENTE (PRIVADO Y GRUPOS) ---
       let aplicarAntiInsultos = false;
       if (isGroup) {
-        const confG = db.prepare("SELECT antiinsultos FROM grupos_config WHERE jid = ?").get(from);
+        const confG = db
+          .prepare("SELECT antiinsultos FROM grupos_config WHERE jid = ?")
+          .get(from);
         if (confG && confG.antiinsultos === 1) {
           aplicarAntiInsultos = true;
         }
@@ -1095,30 +1110,115 @@ async function connectToWhatsApp(isReconnect = false) {
       }
 
       if (aplicarAntiInsultos) {
-       const insultosGenerales = [
-          "estupido", "Estupido", "estúpida", "Estúpida", "estupidos", "Estupidos", "estúpidos", "Estúpidos", "idiota", "Idiota",
-          "imbecil", "Imbecil", "imbécil", "Imbécil", "imbeciles", "Imbeciles", "imbéciles", "Imbéciles", "pendejo", "Pendejo",
-          "pendeja", "Pendeja", "pendejos", "Pendejos", "pendejas", "Pendejas", "puto", "Puto", "puta", "Puta",
-          "putos", "Putos", "putas", "Putas", "mierda", "Mierda",
-          "cabron", "Cabrón", "cabrones", "Cabrones", "zorra", "Zorra",
-          "zorras", "Zorras", "basura", "Basura","basuras", "Basuras",
-         "culero", "Culero", "culera", "Culera", "culeros", "Culeros",
-         "verga", "Verga", "chinga", "Chinga","chingada", "Chingada", "estúpido", "Estúpido",
-         "pendej", "Pendej", "imbéc", "Imbéc", "idiot", "Idiot", "estupid", "Estupid", "malparido", "Malparido", "hijodeputa", "Hijodeputa", "hdp"
+        const insultosGenerales = [
+          "estupido",
+          "Estupido",
+          "estúpida",
+          "Estúpida",
+          "estupidos",
+          "Estupidos",
+          "estúpidos",
+          "Estúpidos",
+          "idiota",
+          "Idiota",
+          "imbecil",
+          "Imbecil",
+          "imbécil",
+          "Imbécil",
+          "imbeciles",
+          "Imbeciles",
+          "imbéciles",
+          "Imbéciles",
+          "pendejo",
+          "Pendejo",
+          "pendeja",
+          "Pendeja",
+          "pendejos",
+          "Pendejos",
+          "pendejas",
+          "Pendejas",
+          "puto",
+          "Puto",
+          "puta",
+          "Puta",
+          "putos",
+          "Putos",
+          "putas",
+          "Putas",
+          "mierda",
+          "Mierda",
+          "cabron",
+          "Cabrón",
+          "cabrones",
+          "Cabrones",
+          "zorra",
+          "Zorra",
+          "zorras",
+          "Zorras",
+          "basura",
+          "Basura",
+          "basuras",
+          "Basuras",
+          "culero",
+          "Culero",
+          "culera",
+          "Culera",
+          "culeros",
+          "Culeros",
+          "verga",
+          "Verga",
+          "chinga",
+          "Chinga",
+          "chingada",
+          "Chingada",
+          "estúpido",
+          "Estúpido",
+          "pendej",
+          "Pendej",
+          "imbéc",
+          "Imbéc",
+          "idiot",
+          "Idiot",
+          "estupid",
+          "Estupid",
+          "malparido",
+          "Malparido",
+          "hijodeputa",
+          "Hijodeputa",
+          "hdp",
         ];
 
-        const textoLimpio = body.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        const contieneGroseria = insultosGenerales.some(groseria => textoLimpio.includes(groseria));
+        const textoLimpio = body
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "");
+        const contieneGroseria = insultosGenerales.some((groseria) =>
+          textoLimpio.includes(groseria),
+        );
 
         if (contieneGroseria) {
           if (isGroup) {
             const meta = await sock.groupMetadata(from);
             if (!isSenderAdminCheck(meta.participants, sender)) {
-              await processarSancionInsulto(sock, from, sender, senderNumber, isGroup, msg);
+              await processarSancionInsulto(
+                sock,
+                from,
+                sender,
+                senderNumber,
+                isGroup,
+                msg,
+              );
               continue;
             }
           } else {
-            await processarSancionInsulto(sock, from, sender, senderNumber, isGroup, msg);
+            await processarSancionInsulto(
+              sock,
+              from,
+              sender,
+              senderNumber,
+              isGroup,
+              msg,
+            );
             continue;
           }
         }
@@ -2041,8 +2141,10 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         if (!isGroup) {
           return sock.sendMessage(
             from,
-            { text: "⚠️ Este comando solo se puede utilizar dentro de un grupo." },
-            { quoted: msg }
+            {
+              text: "⚠️ Este comando solo se puede utilizar dentro de un grupo.",
+            },
+            { quoted: msg },
           );
         }
 
@@ -2050,8 +2152,10 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         if (!isSenderAdminCheck(meta.participants, sender)) {
           return sock.sendMessage(
             from,
-            { text: "❌ Solo los administradores del grupo pueden configurar el AntiLink." },
-            { quoted: msg }
+            {
+              text: "❌ Solo los administradores del grupo pueden configurar el AntiLink.",
+            },
+            { quoted: msg },
           );
         }
 
@@ -2059,8 +2163,10 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         if (opcion !== "on" && opcion !== "off") {
           return sock.sendMessage(
             from,
-            { text: "⚠️ *Uso correcto:*\n\n• */antilink on* (Activa la protección)\n• */antilink off* (Desactiva la protección)" },
-            { quoted: msg }
+            {
+              text: "⚠️ *Uso correcto:*\n\n• */antilink on* (Activa la protección)\n• */antilink off* (Desactiva la protección)",
+            },
+            { quoted: msg },
           );
         }
 
@@ -2068,11 +2174,11 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
 
         db.prepare(
           `INSERT INTO grupos_config (jid, antilink) VALUES (?, ?) 
-           ON CONFLICT(jid) DO UPDATE SET antilink = ?`
+           ON CONFLICT(jid) DO UPDATE SET antilink = ?`,
         ).run(from, estado, estado);
 
         if (estado === 1) {
-          const textoActivo = 
+          const textoActivo =
             `🛡️ *PROTECCIÓN ANTILINK ACTIVADA* 🛡️\n\n` +
             `Queda estrictamente *prohibido* enviar enlaces de invitación a otros grupos de WhatsApp.\n\n` +
             `⚠️ *Advertencia:* Quien envíe un enlace será eliminado automáticamente del grupo.`;
@@ -2080,13 +2186,15 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
           await sock.sendMessage(
             from,
             { text: textoActivo, contextInfo: Marca_SicariOfc },
-            { quoted: msg }
+            { quoted: msg },
           );
         } else {
           await sock.sendMessage(
             from,
-            { text: "🔴 *AntiLink desactivado.* Ahora se permiten enlaces en el grupo." },
-            { quoted: msg }
+            {
+              text: "🔴 *AntiLink desactivado.* Ahora se permiten enlaces en el grupo.",
+            },
+            { quoted: msg },
           );
         }
       }
@@ -2095,8 +2203,10 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         if (!isGroup) {
           return sock.sendMessage(
             from,
-            { text: "⚠️ Este comando solo se puede utilizar dentro de un grupo." },
-            { quoted: msg }
+            {
+              text: "⚠️ Este comando solo se puede utilizar dentro de un grupo.",
+            },
+            { quoted: msg },
           );
         }
 
@@ -2104,8 +2214,10 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         if (!isSenderAdminCheck(meta.participants, sender)) {
           return sock.sendMessage(
             from,
-            { text: "❌ Solo los administradores del grupo pueden configurar el AntiInsultos." },
-            { quoted: msg }
+            {
+              text: "❌ Solo los administradores del grupo pueden configurar el AntiInsultos.",
+            },
+            { quoted: msg },
           );
         }
 
@@ -2113,8 +2225,10 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         if (opcion !== "on" && opcion !== "off") {
           return sock.sendMessage(
             from,
-            { text: "⚠️ *Uso correcto:*\n\n• */antiinsultos on* (Activa la protección)\n• */antiinsultos off* (Desactiva la protección)" },
-            { quoted: msg }
+            {
+              text: "⚠️ *Uso correcto:*\n\n• */antiinsultos on* (Activa la protección)\n• */antiinsultos off* (Desactiva la protección)",
+            },
+            { quoted: msg },
           );
         }
 
@@ -2122,20 +2236,23 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
 
         db.prepare(
           `INSERT INTO grupos_config (jid, antiinsultos) VALUES (?, ?) 
-           ON CONFLICT(jid) DO UPDATE SET antiinsultos = ?`
+           ON CONFLICT(jid) DO UPDATE SET antiinsultos = ?`,
         ).run(from, estado, estado);
 
         if (estado === 1) {
           await sock.sendMessage(
             from,
-            { text: "🛡️ *PROTECCIÓN ANTIINSULTOS ACTIVADA*\n\nEl bot vigilará el chat y advertirá a quienes usen lenguaje ofensivo.", contextInfo: Marca_SicariOfc },
-            { quoted: msg }
+            {
+              text: "🛡️ *PROTECCIÓN ANTIINSULTOS ACTIVADA*\n\nEl bot vigilará el chat y advertirá a quienes usen lenguaje ofensivo.",
+              contextInfo: Marca_SicariOfc,
+            },
+            { quoted: msg },
           );
         } else {
           await sock.sendMessage(
             from,
             { text: "🔴 *AntiInsultos desactivado.*" },
-            { quoted: msg }
+            { quoted: msg },
           );
         }
       }
@@ -2647,12 +2764,15 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
             try {
               thumbnailBuffer = await descargarImagenBuffer(video.thumbnail);
             } catch (e) {
-              console.error("No se pudo descargar la miniatura de YouTube:", e.message);
+              console.error(
+                "No se pudo descargar la miniatura de YouTube:",
+                e.message,
+              );
             }
           }
 
           // 2. Construir la información detallada con la marca de agua
-          const textoDetalles = 
+          const textoDetalles =
             `🎵 *INFORMACIÓN DE LA CANCIÓN* 🎵\n\n` +
             `📌 *Título:* ${video.title}\n` +
             `📅 *Fecha de subida:* ${video.ago || "No disponible"}\n` +
@@ -2668,9 +2788,9 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
               {
                 image: thumbnailBuffer,
                 caption: textoDetalles,
-                contextInfo: Marca_SicariOfc, 
+                contextInfo: Marca_SicariOfc,
               },
-              { quoted: msg }
+              { quoted: msg },
             );
           } else {
             // Si por alguna razón falla la miniatura, manda un mensaje de texto con los datos
@@ -2680,7 +2800,7 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
                 text: textoDetalles,
                 contextInfo: Marca_SicariOfc,
               },
-              { quoted: msg }
+              { quoted: msg },
             );
           }
 
@@ -2786,12 +2906,15 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
             try {
               thumbnailBuffer = await descargarImagenBuffer(video.thumbnail);
             } catch (e) {
-              console.error("No se pudo descargar la miniatura del video:", e.message);
+              console.error(
+                "No se pudo descargar la miniatura del video:",
+                e.message,
+              );
             }
           }
 
           // 2. Construir la información detallada con la marca de agua de CobraKaiBot
-          const textoDetalles = 
+          const textoDetalles =
             `🎥 *INFORMACIÓN DEL VIDEO* 🎥\n\n` +
             `📌 *Título:* ${video.title}\n` +
             `📅 *Fecha de subida:* ${video.ago || "No disponible"}\n` +
@@ -2809,7 +2932,7 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
                 caption: textoDetalles,
                 contextInfo: Marca_SicariOfc, // Marca de agua institucional CobraKaiBot
               },
-              { quoted: msg }
+              { quoted: msg },
             );
           } else {
             await sock.sendMessage(
@@ -2818,7 +2941,7 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
                 text: textoDetalles,
                 contextInfo: Marca_SicariOfc,
               },
-              { quoted: msg }
+              { quoted: msg },
             );
           }
 
@@ -3050,7 +3173,11 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
           );
           await sock.sendMessage(
             from,
-            { image: buffer, caption: "🖼️ Aquí tienes tu sticker convertido a imagen\n creada por CobraKaiBot🤖" },
+            {
+              image: buffer,
+              caption:
+                "🖼️ Aquí tienes tu sticker convertido a imagen\n creada por CobraKaiBot🤖",
+            },
             { quoted: msg },
           );
         } catch (e) {
@@ -3310,7 +3437,18 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         }
       }
 
-      if (["hola", "ola", "buenas", "hello"].includes(command)) {
+      if (
+        [
+          "Hola",
+          "hola",
+          "Ola",
+          "ola",
+          "Buenas",
+          "buenas",
+          "Hello",
+          "hello",
+        ].includes(command)
+      ) {
         const textoHola = `┌───  *¡HOLA Y BIENVENIDO!*  ───┐
 │
 ├  👋 ¡Hola, @${senderNumber}!
@@ -3337,10 +3475,15 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         [
           "gracias",
           "Gracias",
+          "Grx",
           "grx",
+          "Try",
           "ty",
+          "Thank you",
           "thank you",
+          "Thanks",
           "thanks",
+          "Arigato",
           "arigato",
         ].includes(command)
       ) {
@@ -3372,7 +3515,16 @@ _¡Tu apoyo nos ayuda a seguir trayendo nuevas funciones!_ 🚀`;
       }
 
       if (
-        ["adios", "adiós", "Adios", "Adiós", "bye", "chao"].includes(command)
+        [
+          "adios",
+          "adiós",
+          "Adios",
+          "Adiós",
+          "Bye",
+          "bye",
+          "Chao",
+          "chao",
+        ].includes(command)
       ) {
         const textoAdios = `┌───  *¡HASTA LUEGO!*  ───┐
 │

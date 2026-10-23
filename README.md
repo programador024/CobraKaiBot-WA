@@ -53,11 +53,11 @@ A continuación se muestran algunos de los comandos más relevantes disponibles 
 
 <br>
 
-| Nombre            | Comando             | Caracteristicas                  |
+| Modo              | Comando             | Caracteristicas                  |
 | ----------------- | ------------------- | -------------------------------- |
 | **Privado/Grupo** | `/start o /menu`    | Iniciar bot - Ver menu principal |
-| **Privado/Grupo** | `.ping`             | Ver velocidad del bot            |
-| **Privado/Grupo** | `.creador`          | Ver mi creador                   |
+| **Privado/Grupo** | `/ping`             | Ver velocidad del bot            |
+| **Privado/Grupo** | `/creador`          | Ver mi creador                   |
 | **Privado/Grupo** | `/repo` o `/github` | Clonar bot                       |
 | **Grupo**         | `/extgrup`          | Ver menu admins grupo            |
 | **Grupo**         | `/appsyextra`       | Ver menu APKs e IA               |
