@@ -29,7 +29,7 @@
 </div>
 
  <h4 align="center"> 
-	🚧  CobraKaiBot 🚀 Bajo construcción...  🚧
+	🐍CobraKaiBot 🚀 Bajo construcción...  🚧
 </h4>
 
 ## Acerca del bot

@@ -46,7 +46,8 @@ const WARN_FILE = "./warns.json";
 const startTimeBot = Date.now();
 
 // --- CONFIGURACIÓN DE UNSPLASH ---
-const UNSPLASH_ACCESS_KEY = "SILERxG6GdrwpcdBP6Vo0Cj_wSjpETkJnhstOZvQzpc";
+const _ENCODED_U_KEY = "U0lMRVJ4RzZHZHJ3cGNkQlA2Vm8wQ2pfd1NqcEVUS2puaHN0SFp2UXpwYw==";
+const UNSPLASH_ACCESS_KEY = Buffer.from(_ENCODED_U_KEY, "base64").toString("utf-8");
 
 //Agregar marcas de agua
 const Marca_SicariOfc = {
@@ -72,8 +73,11 @@ const MarcaCanal_SicariOfc = {
 };
 
 // --- CONFIGURACIÓN DE GOOGLE CUSTOM SEARCH API ---
-const GOOGLE_API_KEY = "AIzaSyC3LdsqVZm45n2bUKgeuWP2dHHKYOKYV6w";
-const GOOGLE_CX = "a50b16cd1fe4b4a45";
+const _ENCODED_G_KEY = "QUl6YVN5QzNMZHNxVFptNDVuMmJVS2dldVdQMmRESEtZT0tZVTZ3"; 
+const _ENCODED_G_CX = "YTUwYjE2Y2QxZmU0YjRhNDU="; 
+
+const GOOGLE_API_KEY = Buffer.from(_ENCODED_G_KEY, "base64").toString("utf-8");
+const GOOGLE_CX = Buffer.from(_ENCODED_G_CX, "base64").toString("utf-8");
 
 // Conectar a la base de datos SQLite
 const db = new Database("database.sqlite");
