@@ -49,6 +49,20 @@ Si te gustó el proyecto, deja una ⭐ en el repo. y apoyar el proyecto, eso me 
 A continuación se muestran algunos de los comandos más relevantes disponibles en **CobraKaiBot V1**:
 
 <details>
+<summary><b>Lista de Prefijos Permitidos<b></summary>
+
+<br>
+
+| Modo              | Prefijo | Ejemplo |
+| ----------------- | ------- | ------- |
+| **Privado/Grupo** | /       | `/menu` |
+| **Privado/Grupo** | .       | `.menu` |
+| **Privado/Grupo** | #       | `#menu` |
+| **Privado/Grupo** | !       | `!menu` |
+
+</details>
+
+<details>
 <summary><b>👥Comandos en Privado y Grupo</b></summary>
 
 <br>

@@ -23,7 +23,7 @@ import { Sticker, StickerTypes } from "wa-sticker-formatter";
 import https from "https";
 import axios from "axios";
 
-// --- SILENCIAR SPAM DE ERRORES DE SESIÓN (Bad MAC, libsignal, Baileys) ---
+// --- SILENCIAR SPAM DE ERRORES DE SESIÓN ---
 const originalStderrWrite = process.stderr.write.bind(process.stderr);
 process.stderr.write = function (chunk, encoding, fd) {
   const str = chunk ? chunk.toString() : "";
@@ -35,52 +35,29 @@ process.stderr.write = function (chunk, encoding, fd) {
     str.includes("SessionCipher") ||
     str.includes("queue_job.js")
   ) {
-    return true; // Ignora el mensaje de error basura y no lo imprime
+    return true;
   }
   return originalStderrWrite(chunk, encoding, fd);
 };
+
+// Memoria temporal para partidas de Tic-Tac-Toe (Gato) activas por chat/grupo
+const tttPartidas = new Map();
+// Memoria temporal para trivias activas por chat
+const triviasActivas = new Map();
+// Memoria temporal para retos matemáticos activos por chat
+const mathActivos = new Map();
 
 // guardar warns
 const WARN_FILE = "./warns.json";
 // Registro de tiempo de actividad del bot
 const startTimeBot = Date.now();
 
-// --- CONFIGURACIÓN DE UNSPLASH ---
-const _ENCODED_U_KEY = "U0lMRVJ4RzZHZHJ3cGNkQlA2Vm8wQ2pfd1NqcEVUS2puaHN0SFp2UXpwYw==";
-const UNSPLASH_ACCESS_KEY = Buffer.from(_ENCODED_U_KEY, "base64").toString("utf-8");
-
-//Agregar marcas de agua
-const Marca_SicariOfc = {
-  externalAdReply: {
-    title: "🤖 CobraKai Bot V1",
-    body: "Creado por SicarioOfc",
-    mediaType: 1,
-    renderLargerThumbnail: false,
-    thumbnail: fs.readFileSync("./img/favicon/favicon.png"),
-    sourceUrl: "https://t.me/mds_inmunes2",
-  },
-};
-
-const MarcaCanal_SicariOfc = {
-  externalAdReply: {
-    title: "🐍CobraKai - Bot Official🐍",
-    body: "Unete a mi Canal",
-    mediaType: 1,
-    renderLargerThumbnail: false,
-    thumbnail: fs.readFileSync("./img/favicon/favicon.png"),
-    sourceUrl: "https://t.me/mds_inmunes2",
-  },
-};
-
-// --- CONFIGURACIÓN DE GOOGLE CUSTOM SEARCH API ---
-const _ENCODED_G_KEY = "QUl6YVN5QzNMZHNxVFptNDVuMmJVS2dldVdQMmRESEtZT0tZVTZ3"; 
-const _ENCODED_G_CX = "YTUwYjE2Y2QxZmU0YjRhNDU="; 
-
-const GOOGLE_API_KEY = Buffer.from(_ENCODED_G_KEY, "base64").toString("utf-8");
-const GOOGLE_CX = Buffer.from(_ENCODED_G_CX, "base64").toString("utf-8");
+// --- CARGAR CONFIGURACIÓN Y CREDENCIALES GLOBALES ---
+import "./config.js";
 
 // Conectar a la base de datos SQLite
 const db = new Database("database.sqlite");
+
 
 // Crear tabla de registro usuarios
 db.exec(`
@@ -89,7 +66,7 @@ db.exec(`
     numero TEXT,
     nombre_completo TEXT,
     pais TEXT,
-    rol TEXT DEFAULT 'Usuario',
+    rol TEXT DEFAULT 'Karateca',
     fecha_nacimiento TEXT,
     foto TEXT,
     fecha_registro TEXT
@@ -109,6 +86,17 @@ db.exec(`
 db.exec(`
   CREATE TABLE IF NOT EXISTS bloqueos_privados (
     jid TEXT PRIMARY KEY
+  )
+`);
+// Crear tabla para estadísticas o juegos
+db.exec(`
+  CREATE TABLE IF NOT EXISTS juegos_stats (
+    jid TEXT PRIMARY KEY,
+    usuario_id TEXT,
+    nombre TEXT,
+    puntos INTEGER DEFAULT 0,
+    victorias INTEGER DEFAULT 0,
+    dojo TEXT DEFAULT 'Ninguno'
   )
 `);
 
@@ -805,6 +793,7 @@ async function connectToWhatsApp(isReconnect = false) {
     auth: state,
     printQRInTerminal: false,
     syncFullHistory: false, // Evita sincronizar todo el historial largo
+    browser: ["CobraKaiBot", "Chrome", "1.0.0"], // [NombreBot, Navegador, Versión]
   });
 
   if (usePairingCode && !sock.authState.creds.registered) {
@@ -938,6 +927,8 @@ async function connectToWhatsApp(isReconnect = false) {
         `🚨 ¡Alerta de nuevo humano detectado! Bienvenido @{userNumber}. Trae botanas o el administrador te baneará. 🍟`,
         `🤠 ¡Epa @{userNumber}! Entraste bajo tu propio riesgo a *${groupName}*. Acomódate y saca el chisme.`,
         `🥳 ¡Por fin alguien con buena vibra! Bienvenido/a @{userNumber}. Aquí todos estamos locos, pero te va a encantar.`,
+        `⚔️ ¡Miren todos! Entro al combate @{userNumber}. es hora del duelo en el grupo.`,
+        `🐍 Hola @{userNumber}, Cobra Kai y todo el grupo te da la bienvenida.`,
       ];
 
       const frasesDespedida = [
@@ -945,6 +936,8 @@ async function connectToWhatsApp(isReconnect = false) {
         `💸 Se nos fue @{userNumber}. Seguro se enteró de que aquí cobramos renta por estar en el grupo.`,
         `🏃‍♂️ ¡Soldado caído! @{userNumber} aplicó la de "ir por cigarros" y no volvió. Se le extrañará... o tal vez no. 🤔`,
         `👋 @{userNumber} ha salido del grupo. Dejemos un minuto de silencio... Bueno, ya pasó, ¿quién tiene hambre?`,
+        `🗡️ No aguanto el combate @{userNumber}. Tenemos un perdedor caido en el grupo.`,
+        `🐍 Hasta luego @{userNumber} Cobra Kai y el grupo te dice adios.`,
       ];
 
       for (const num of participants) {
@@ -1050,10 +1043,19 @@ async function connectToWhatsApp(isReconnect = false) {
         msg.message.extendedTextMessage?.text ||
         msg.message.imageMessage?.caption ||
         "";
+      // Agregar multiplefijos: / , . , # , !
+      const trimmedBody = body.trim();
+      const prefixRegex = global.prefix || /^[./!#]/;
+      // Prefijo por default "/"
+      let normalizedBody = trimmedBody;
+      if (trimmedBody.length > 0 && prefixRegex.test(trimmedBody)) {
+        normalizedBody = '/' + trimmedBody.slice(1);
+      }
 
-      const args = body.trim().split(/ +/);
+      const args = normalizedBody.split(/ +/);
       const command = args.shift().toLowerCase();
 
+      // Detectar usuario
       const senderNumber = sender.split("@")[0].replace(/\D/g, "");
       const pushName = msg.pushName || "Usuario";
 
@@ -1100,7 +1102,7 @@ async function connectToWhatsApp(isReconnect = false) {
         }
       }
 
-      // --- SISTEMA ANTIINSULTOS INTELIGENTE (PRIVADO Y GRUPOS) ---
+      // --- SISTEMA ANTIINSULTOS (PRIVADO Y GRUPOS) ---
       let aplicarAntiInsultos = false;
       if (isGroup) {
         const confG = db
@@ -1257,7 +1259,7 @@ async function connectToWhatsApp(isReconnect = false) {
           await sock.sendMessage(
             from,
             {
-              text: `⚠️ *Acceso Restringido*\n\nPara utilizar las herramientas de descargas, IA y APKs debes registrarte en el bot.\n\n*Escribe:* /reg Rol | AAAA-MM-DD | Nombre\n*Ejemplo:* /reg Modder | 2000-05-20 | ${pushName}`,
+              text: `⚠️ *Acceso Restringido*\n\nPara utilizar las herramientas de descargas, IA y APKs debes registrarte en el bot.\n\n*Escribe:* /reg Rol | AAAA-MM-DD | Nombre\n*Ejemplo:*\n/reg Karateca | 2000-05-20 | ${pushName}`,
               mentions: [sender],
             },
             { quoted: msg },
@@ -1266,20 +1268,200 @@ async function connectToWhatsApp(isReconnect = false) {
         }
       }
 
+
+      // --- VALIDADOR AUTOMÁTICO DE PARTIDAS DE TTT (GATO) ---
+      if (tttPartidas.has(from) && !trimmedBody.startsWith("/")) {
+        const partida = tttPartidas.get(from);
+
+        // Verificar si quien escribe es uno de los dos jugadores
+        if (sender !== partida.jugadorX && sender !== partida.jugadorO) {
+          continue; // Ignorar si habla un espectador ajeno a la partida
+        }
+
+        // Verificar si es el turno del usuario
+        if (sender !== partida.turno) {
+          await sock.sendMessage(from, { text: `⏳ Espera tu turno. Le toca mover a @${partida.turno.split("@")[0]}`, mentions: [partida.turno] }, { quoted: msg });
+          continue;
+        }
+
+        const movimiento = parseInt(trimmedBody);
+        if (isNaN(movimiento) || movimiento < 1 || movimiento > 9) {
+          continue; // Si no manda un número válido del 1 al 9, lo ignoramos para que hable normal si quiere
+        }
+
+        const index = movimiento - 1;
+        // Verificar si la casilla ya está ocupada
+        if (partida.tablero[index] === "❌" || partida.tablero[index] === "⭕") {
+          await sock.sendMessage(from, { text: "⚠️ Esa casilla ya está ocupada. Elige otra del 1 al 9." }, { quoted: msg });
+          continue;
+        }
+
+        // Marcar la casilla según el jugador
+        const esX = sender === partida.jugadorX;
+        partida.tablero[index] = esX ? "❌" : "⭕";
+
+        // Función interna para verificar ganadores
+        const verificarGanador = (t) => {
+          const combinaciones = [
+            [0,1,2], [3,4,5], [6,7,8], // Horizontales
+            [0,3,6], [1,4,7], [2,5,8], // Verticales
+            [0,4,8], [2,4,6]          // Diagonales
+          ];
+          for (const [a, b, c] of combinaciones) {
+            if (t[a] && t[a] === t[b] && t[a] === t[c]) {
+              return t[a];
+            }
+          }
+          return null;
+        };
+
+        const ganador = verificarGanador(partida.tablero);
+        const tableroLleno = partida.tablero.every(casilla => casilla === "❌" || casilla === "⭕");
+
+        if (ganador) {
+          tttPartidas.delete(from); // Fin de partida
+          const textoGanador = 
+            `🎉 *¡PARTIDA FINALIZADA!* 🎉\n\n` +
+            `🏆 *¡Tenemos un ganador:* @${senderNumber}!\n\n` +
+            `┌───┬───┬───┐\n` +
+            `│ ${partida.tablero[0]} │ ${partida.tablero[1]} │ ${partida.tablero[2]} │\n` +
+            `├───┼───┼───┤\n` +
+            `│ ${partida.tablero[3]} │ ${partida.tablero[4]} │ ${partida.tablero[5]} │\n` +
+            `├───┼───┼───┤\n` +
+            `│ ${partida.tablero[6]} │ ${partida.tablero[7]} │ ${partida.tablero[8]} │\n` +
+            `└───┴───┴───┘`;
+
+          await sock.sendMessage(from, { text: textoGanador, mentions: [sender], contextInfo: Marca_SicariOfc }, { quoted: msg });
+          continue;
+        }
+
+        if (tableroLleno) {
+          tttPartidas.delete(from); // Fin de partida por empate
+          const textoEmpate = 
+            `🤝 *¡EMPATE!* 🤝\n\n` +
+            `El tablero se ha llenado y nadie ganó.\n\n` +
+            `┌───┬───┬───┐\n` +
+            `│ ${partida.tablero[0]} │ ${partida.tablero[1]} │ ${partida.tablero[2]} │\n` +
+            `├───┼───┼───┤\n` +
+            `│ ${partida.tablero[3]} │ ${partida.tablero[4]} │ ${partida.tablero[5]} │\n` +
+            `├───┼───┼───┤\n` +
+            `│ ${partida.tablero[6]} │ ${partida.tablero[7]} │ ${partida.tablero[8]} │\n` +
+            `└───┴───┴───┘`;
+
+          await sock.sendMessage(from, { text: textoEmpate, contextInfo: Marca_SicariOfc }, { quoted: msg });
+          continue;
+        }
+
+        // Cambiar turno al siguiente jugador
+        partida.turno = esX ? partida.jugadorO : partida.jugadorX;
+
+        const textoTurno = 
+          `🎮 *TURNO DE JUEGO* 🎮\n\n` +
+          `┌───┬───┬───┐\n` +
+          `│ ${partida.tablero[0]} │ ${partida.tablero[1]} │ ${partida.tablero[2]} │\n` +
+          `├───┼───┼───┤\n` +
+          `│ ${partida.tablero[3]} │ ${partida.tablero[4]} │ ${partida.tablero[5]} │\n` +
+          `├───┼───┼───┤\n` +
+          `│ ${partida.tablero[6]} │ ${partida.tablero[7]} │ ${partida.tablero[8]} │\n` +
+          `└───┴───┴───┘\n\n` +
+          `👉 Turno de: @${partida.turno.split("@")[0]}`;
+
+        await sock.sendMessage(from, { text: textoTurno, mentions: [partida.turno], contextInfo: Marca_SicariOfc }, { quoted: msg });
+        continue;
+      }
+
+   
+      // --- VALIDADOR AUTOMÁTICO DE TRIVIA ACTIVA ---
+      if (triviasActivas.has(from) && !trimmedBody.startsWith("/")) {
+        const triviaActual = triviasActivas.get(from);
+        const respuestaUsuario = trimmedBody.toLowerCase();
+
+        if (respuestaUsuario.includes(triviaActual.respuesta)) {
+          triviasActivas.delete(from); // Limpiamos la trivia para que no se repita
+
+          // Sumar puntos y victorias en la tabla de juegos_stats
+          try {
+            db.prepare(`
+              INSERT INTO juegos_stats (jid, puntos, victorias) VALUES (?, 10, 1)
+              ON CONFLICT(jid) DO UPDATE SET puntos = puntos + 10, victorias = victorias + 1
+            `).run(sender);
+          } catch (e) {}
+
+          await sock.sendMessage(
+            from,
+            { 
+              text: `🎉 ¡CORRECTO! @${senderNumber} adivinó la respuesta.\n\n🏆 *Respuesta:* ${triviaActual.respuesta.toUpperCase()}\n_Has ganado 10 puntos en el ranking._`, 
+              mentions: [sender],
+              contextInfo: Marca_SicariOfc 
+            },
+            { quoted: msg }
+          );
+          continue;
+        } else {
+          // Si responde mal pero el mensaje parece un intento fallido directo
+          triviasActivas.delete(from); // Cerramos la trivia o puedes dejarla abierta
+          await sock.sendMessage(
+            from,
+            { 
+              text: `❌ ¡Incorrecto @${senderNumber}! La respuesta correcta era: *${triviaActual.respuesta.toUpperCase()}*. ¡Más suerte la próxima!`, 
+              mentions: [sender],
+              contextInfo: Marca_SicariOfc 
+            },
+            { quoted: msg }
+          );
+          continue;
+        }
+      }
+
+
+      // --- VALIDADOR AUTOMÁTICO DE RETO MATEMÁTICO ---
+      if (mathActivos.has(from) && !trimmedBody.startsWith("/")) {
+        const mathActual = mathActivos.get(from);
+        
+        // Limpiamos la respuesta del usuario por si incluye espacios o símbolos extra
+        const respuestaUsuario = trimmedBody.replace(/\s+/g, "");
+
+        if (respuestaUsuario === mathActual.resultado.toString()) {
+          // Limpiar el temporizador para que no se mande el mensaje automático después
+          clearTimeout(mathActual.timer);
+          mathActivos.delete(from);
+
+          // Sumar puntos y victorias en la tabla de juegos_stats
+          try {
+            db.prepare(`
+              INSERT INTO juegos_stats (jid, puntos, victorias) VALUES (?, 10, 1)
+              ON CONFLICT(jid) DO UPDATE SET puntos = puntos + 10, victorias = victorias + 1
+            `).run(sender);
+          } catch (e) {}
+
+          await sock.sendMessage(
+            from,
+            { 
+              text: `🎉 *¡EXCELENTE @${senderNumber}!* Le atinaste al reto matemático.\n\n🔢 *Resultado correcto:* ${mathActual.resultado}\n_Has ganado 10 puntos en el ranking._`, 
+              mentions: [sender],
+              contextInfo: Marca_SicariOfc 
+            },
+            { quoted: msg }
+          );
+          continue;
+        }
+      }
+
+
       if (command === "/start" || command === "/menu") {
         const { fechaReal, horaReal, pais, timeZone } = getFechaHoraPorNumero(
           sender,
           msg,
         );
 
-        console.log(
-          `[MENU] Solicitado por ${senderNumber} | País: ${pais} | Zona: ${timeZone} | Hora: ${horaReal}`,
-        );
-
         const usuarioBD = db
           .prepare("SELECT nombre_completo FROM usuarios WHERE jid = ?")
           .get(sender);
-        const nombreUsuario = usuarioBD ? usuarioBD.nombre_completo : pushName;
+        const nombreParaLog = usuarioBD ? usuarioBD.nombre_completo : (pushName || "Usuario");
+
+        console.log(
+          `[MENU1] Usuario: ${nombreParaLog} | País: ${pais} | Zona: ${timeZone} | Hora: ${horaReal}`,
+        );
 
         const response =
           `╭───◈ COBRAKAI - WA ◈───╮\n` +
@@ -1289,23 +1471,25 @@ async function connectToWhatsApp(isReconnect = false) {
           `│ 🌎 Modo: ${isGroup ? "Grupo" : "Privado"}\n` +
           `│ 👤 User: @${senderNumber}\n` +
           `╰───────────────╯\n\n` +
-          `Hola ${nombreUsuario}, soy tu asistente virtual. 👾\n\n` +
+          `Hola ${nombreParaLog}, soy tu asistente virtual. 🐍\n\n` +
           `『 PRINCIPAL 』\n` +
           `├ • /menu - Ver menú principal\n` +
+          `├ • /info - Prefijos del bot\n` +
           `├ • /ping - Velocidad del bot\n` +
           `├ • /status - Estado del bot\n` +
           `├ • /creador - Mi creador\n` +
           `└ • /repo - Repositorio oficial\n\n` +
-          `『 GRUPO 👥 』\n` +
-          `├ • /tagall - Mencionar a todos\n` +
-          `├ • /addadmin - Dar admin bot\n` +
-          `├ • /link - Link del grupo\n` +
-          `└ • /extgrup - Menu ext adm\n\n` +
           `『 REGISTRO 🔐 』\n` +
           `├ • /reg Rol | Fecha | Nombre\n` +
           `├ • /perfil - Ver tu perfil\n` +
           `├ • /edituser - Editar perfil\n` +
           `└ • /deleteusuario - Borrar datos\n\n` +
+          `『 GRUPO 👥 』\n` +
+          `├ • /tagall - Mencionar a todos\n` +
+          `├ • /addadmin - Dar admin bot\n` +
+          `├ • /link - Link del grupo\n` +
+          `├ • /extgrup - Menu adm group\n` +
+          `└ • /gamegroup - Menu Juegos\n\n` +
           `『 EXTRAS & REDES 🚀 』\n` +
           `├ • /appsyextra - Menu APKs e IA[🔒]\n` +
           `├ • /canteleg - Canal Telegram\n` +
@@ -1324,9 +1508,31 @@ async function connectToWhatsApp(isReconnect = false) {
         );
 
         await sock.sendMessage(from, {
-          text: "📌 *Canal Oficial de Telegram:*",
+          text: "📌 *Canal Oficial de Telegram*",
           contextInfo: MarcaCanal_SicariOfc,
         });
+      }
+if (command === "/info") {
+        const textoInfo =
+          `┌───  *INFORMACIÓN DEL BOT*  ───┐\n` +
+          `│\n` +
+          `├  🤖 *Bot:* CobraKaiBot V1\n` +
+          `├  👑 *Creador:* SicarioOfc\n` +
+          `├  ⌨️ *Prefijos aceptados:* / , . , # , !\n` +
+          `│\n` +
+          `├───  *EJEMPLOS DE USO*  ───\n` +
+          `│\n` +
+          `├  👉 /menu\n` +
+          `├  👉 .menu\n` +
+          `├  👉 #menu\n` +
+          `└  👉 !menu\n\n` +
+          `_¡Hola @${senderNumber}, usa cualquiera de estos símbolos antes de tus comandos!_ 🚀`;
+
+        await sock.sendMessage(
+          from,
+          { text: textoInfo, mentions: [sender], contextInfo: Marca_SicariOfc },
+          { quoted: msg },
+        );
       }
 
       if (command === "/creador") {
@@ -1643,7 +1849,7 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
           await sock.sendMessage(
             from,
             {
-              text: `⚠️ *Uso correcto del registro:*\n\n/reg Rol | AAAA-MM-DD | Nombre\n\n*Ejemplo:*\n/reg Developer | 2000-08-15 | ${pushName}`,
+              text: `⚠️ *Uso correcto del registro:*\n\n/reg Rol | AAAA-MM-DD | Nombre\n\n*Ejemplo:*\n/reg Karateca | 2000-08-15 | ${pushName}`,
             },
             { quoted: msg },
           );
@@ -1681,7 +1887,7 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         await sock.sendMessage(
           from,
           {
-            text: `✅ *Registro exitoso*\n\n👤 Nombre: ${nombreFinal}\n📞 Phone: @${senderNumber}\n🎂 Edad: ${edadCalculada}\n🌎 País: ${pais}\n🎭 Rol: ${rolIngresado}\n\n¡Ya puedes usar todos los comandos restringidos!`,
+            text: `✅ *Registro exitoso*\n\n👤 Nombre: ${nombreFinal}\n📞 Phone: @${senderNumber}\n🎂 Edad: ${edadCalculada}\n🌎 País: ${pais}\n🎭 Rol: ${rolIngresado}\n\n¡Ya puedes usar todos los comandos restringidos!\nO ejecutar el comando /perfil , para ver tus datos completos.`,
             mentions: [sender],
           },
           { quoted: msg },
@@ -1710,7 +1916,7 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
           await sock.sendMessage(
             from,
             {
-              text: `⚠️ *Uso correcto para editar:*\n\n/edituser NuevoRol | AAAA-MM-DD | NuevoNombre\n\n*Ejemplo:*\n/edituser Modder | 1998-11-20 | ${existe.nombre_completo}`,
+              text: `⚠️ *Uso correcto para editar:*\n\n/edituser NuevoRol | AAAA-MM-DD | NuevoNombre\n\n*Ejemplo:*\n/edituser Karateca | 1998-11-20 | ${existe.nombre_completo}`,
             },
             { quoted: msg },
           );
@@ -1748,6 +1954,7 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         const user = db
           .prepare("SELECT * FROM usuarios WHERE jid = ?")
           .get(sender);
+          
         if (!user) {
           await sock.sendMessage(
             from,
@@ -1758,15 +1965,35 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
             { quoted: msg },
           );
         } else {
+          // Consultar estadísticas de juegos si existen (si no, devuelve valores por defecto)
+          const stats = db.prepare("SELECT dojo, puntos, victorias FROM juegos_stats WHERE jid = ?").get(sender);
+          
           const edadCalculada = calcularEdad(user.fecha_nacimiento);
+          
+          // Definir estado del dojo según si ya lo eligió o no
+          let dojoInfo = "👤 Sin Dojo (Usa */dojo* para elegir)";
+          let puntosInfo = "0";
+          let victoriasInfo = "0";
+
+          if (stats && stats.dojo && stats.dojo !== 'Ninguno') {
+            dojoInfo = stats.dojo === 'Cobra Kai' ? '🦅 Cobra Kai' : '☯️ Miyagi-Do';
+            puntosInfo = stats.puntos;
+            victoriasInfo = stats.victorias;
+          }
+
           const captionPerfil =
-            `👤 *TU PERFIL*\n\n` +
-            `Nombre: ${user.nombre_completo}\n` +
-            `Phone: @${senderNumber}\n` +
-            `Edad: ${edadCalculada}\n` +
-            `Pais: ${user.pais}\n` +
-            `Rol: ${user.rol}\n` +
-            `Fecha: ${user.fecha_registro}`;
+            `👤 *TU PERFIL DE USUARIO* 👤\n\n` +
+            `📝 *Nombre:* ${user.nombre_completo}\n` +
+            `📞 *Phone:* @${senderNumber}\n` +
+            `🎂 *Edad:* ${edadCalculada}\n` +
+            `🌎 *País:* ${user.pais}\n` +
+            `🎭 *Rol:* ${user.rol}\n` +
+            `📅 *Registro:* ${user.fecha_registro}\n\n` +
+            `🥋 *ESTADÍSTICAS DE COMBATE* 🥋\n` +
+            `🏫 *Dojo:* ${dojoInfo}\n` +
+            `🏆 *Puntos:* \`${puntosInfo}\`\n` +
+            `🎯 *Victorias:* \`${victoriasInfo}\`\n\n` +
+            `_⚡ Usa /dojo para unirte a un bando y\n/combate para ganar puntos._`;
 
           if (user.foto) {
             await sock.sendMessage(
@@ -1812,7 +2039,8 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         }
       }
 
-      if (command === "/extgrup") {
+      // Menu admin group
+     if (command === "/extgrup") {
         if (!isGroup) {
           return sock.sendMessage(
             from,
@@ -1827,13 +2055,15 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
           sender,
           msg,
         );
-        console.log(
-          `[MENU] Solicitado por ${senderNumber} | País: ${pais} | Zona: ${timeZone} | Hora: ${horaReal}`,
-        );
+        
         const usuarioBD = db
           .prepare("SELECT nombre_completo FROM usuarios WHERE jid = ?")
           .get(sender);
-        const nombreUsuario = usuarioBD ? usuarioBD.nombre_completo : pushName;
+        const nombreParaLog = usuarioBD ? usuarioBD.nombre_completo : (pushName || "Usuario");
+
+        console.log(
+          `[MENU2] Usuario: ${nombreParaLog} | País: ${pais} | Zona: ${timeZone} | Hora: ${horaReal}`,
+        );
 
         const response =
           `╭───◈COBRAKAI - ADMIN GRUP◈─╮\n` +
@@ -1843,11 +2073,11 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
           `│ 🌎 Modo: Grupo\n` +
           `│ 👤 User: @${senderNumber}\n` +
           `╰───────────────╯\n\n` +
-          `Hola ${nombreUsuario}, aquí tienes las herramientas extras para grupo. 👾\n` +
+          `Hola ${nombreParaLog}, aquí tienes las herramientas extras para grupo. 👾\n` +
           `⚠️ *Nota:* Estos comandos solo estan permitidos para admins del grupo.\n\n` +
-          `『 ADMINS GRUPO 📱 』\n` +
+          `『 ADMINS GRUPO 🛡️ 』\n` +
           `├ • /hidetag <text> - Mención oculta\n` +
-          `├ • /kick <@user> - Sacar usuario [🔒]\n` +
+          `├ • /kick <@user> - Sacar usuario\n` +
           `├ • /promote <@user> - Dar admin\n` +
           `├ • /demote <@user> - Quitar admin\n` +
           `├ • /welcome <on/off> - Activar/desactivar bienvenida\n` +
@@ -1875,7 +2105,7 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         );
 
         await sock.sendMessage(from, {
-          text: "📌 *Canal Oficial de Telegram:*",
+          text: "📌 *Canal Oficial de Telegram*",
           contextInfo: MarcaCanal_SicariOfc,
         });
       }
@@ -2601,19 +2831,429 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         }
       }
 
-      if (command === "/appsyextra") {
+      // Menu Juegos
+      if (command === "/gamegroup") {
+        if (!isGroup) {
+          return sock.sendMessage(
+            from,
+            {
+              text: "⚠ Este comando solo se puede utilizar dentro de un grupo.",
+            },
+            { quoted: msg },
+          );
+        }
+
         const { fechaReal, horaReal, pais, timeZone } = getFechaHoraPorNumero(
           sender,
           msg,
-        );
-        console.log(
-          `[MENU] Solicitado por ${senderNumber} | País: ${pais} | Zona: ${timeZone} | Hora: ${horaReal}`,
         );
 
         const usuarioBD = db
           .prepare("SELECT nombre_completo FROM usuarios WHERE jid = ?")
           .get(sender);
-        const nombreUsuario = usuarioBD ? usuarioBD.nombre_completo : pushName;
+        const nombreParaLog = usuarioBD ? usuarioBD.nombre_completo : (pushName || "Usuario");
+
+        console.log(
+          `[MENU3] Usuario: ${nombreParaLog} | País: ${pais} | Zona: ${timeZone} | Hora: ${horaReal}`,
+        );
+
+        const response =
+          `╭───◈COBRAKAI - GAME GRUP◈─╮\n` +
+          `│ 🤖 Bot: CobraKai Bot V1\n` +
+          `│ 👑 Creador: SicarioOfc\n` +
+          `│ 📅${fechaReal}🕒${horaReal}🌎${pais}\n` +
+          `│ 🌎 Modo: Grupo\n` +
+          `│ 👤 User: @${senderNumber}\n` +
+          `╰───────────────╯\n\n` +
+          `Hola ${nombreParaLog}, aquí tienes el menu de juegos para grupo. 👾\n\n` +
+          `『 JUEGOS BASICO 🎮 』\n` +
+          `├ • /ttt - Gato / TicTacToe\n` +
+          `├ • /ppt - Piedra, papel, tijera\n` +
+          `├ • /trivia - Adivinanzas\n` +
+          `├ • /math - Reto matemático\n` +
+          `└ • /slot - Tragamonedas\n` +
+          `『 JUEGOS PRO 🏆 』\n` +
+          `├ • /dojo - Elije tu dojo\n` +
+          `├ • /combate - Retar usuario\n` +
+          `└ •/top - Tops del grupo`;
+
+        await sock.sendMessage(
+          from,
+          {
+            image: { url: "./img/cobrakai_menu3.png" },
+            caption: response,
+            mentions: [sender],
+          },
+          { quoted: msg },
+        );
+
+        await sock.sendMessage(from, {
+          text: "📌 *Canal Oficial de Telegram*",
+          contextInfo: MarcaCanal_SicariOfc,
+        });
+      }
+
+      // SISTEMA DE JUEGOS BASICOS
+
+      // TIC-TAC-TOE / GATO INTERACTIVO
+      if (command === "/ttt") {
+        if (!isGroup) {
+          return sock.sendMessage(from, { text: "⚠️ Este juego solo se puede jugar en grupos." }, { quoted: msg });
+        }
+        
+        // Verificar si ya hay una partida activa en este grupo
+        if (tttPartidas.has(from)) {
+          return sock.sendMessage(from, { text: "⚠️ Ya hay una partida de Gato en curso en este grupo. Termínala antes de iniciar otra." }, { quoted: msg });
+        }
+
+        const target = getTarget(msg, args);
+        if (!target) {
+          return sock.sendMessage(from, { text: "⚠️ Etiqueta a un oponente para jugar al Gato.\n*Ejemplo:* /ttt @usuario" }, { quoted: msg });
+        }
+        if (target === sender) {
+          return sock.sendMessage(from, { text: "❌ No puedes jugar contra ti mismo." }, { quoted: msg });
+        }
+
+        // Inicializamos el estado del juego
+        // Tablero con posiciones del 1 al 9
+        tttPartidas.set(from, {
+          jugadorX: sender,       // El retador juega con '❌' y empieza
+          jugadorO: target,       // El oponente juega con '⭕'
+          turno: sender,          // Turno actual
+          tablero: ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+        });
+
+        const tableroVisual = 
+          `🎮 *JUEGO DEL GATO (TicTacToe)* 🎮\n\n` +
+          `❌ *X (Retador):* @${senderNumber}\n` +
+          `⭕ *O (Oponente):* @${target.split("@")[0]}\n\n` +
+          `┌───┬───┬───┐\n` +
+          `│ 1 │ 2 │ 3 │\n` +
+          `├───┼───┼───┤\n` +
+          `│ 4 │ 5 │ 6 │\n` +
+          `├───┼───┼───┤\n` +
+          `│ 7 │ 8 │ 9 │\n` +
+          `└───┴───┴───┘\n\n` +
+          `👉 Es turno de @${senderNumber}. Escribe un número del *1 al 9* para colocar tu ficha.`;
+
+        await sock.sendMessage(from, { text: tableroVisual, mentions: [sender, target], contextInfo: Marca_SicariOfc }, { quoted: msg });
+        continue;
+      }
+
+      // PIEDRA, PAPEL O TIJERA
+      if (command === "/ppt") {
+        const opciones = ["piedra", "papel", "tijera"];
+        const eleccionUsuario = args[0]?.toLowerCase();
+
+        if (!opciones.includes(eleccionUsuario)) {
+          return sock.sendMessage(
+            from,
+            { text: "⚠️ Debes elegir una opción válida.\n\n*Uso:* /ppt [piedra | papel | tijera]\n*Ejemplo:* /ppt piedra", contextInfo: Marca_SicariOfc },
+            { quoted: msg }
+          );
+        }
+
+        const eleccionBot = opciones[Math.floor(Math.random() * opciones.length)];
+        let resultado = "";
+
+        if (eleccionUsuario === eleccionBot) {
+          resultado = `🤝 ¡Empate! Ambos elegimos *${eleccionBot}*.`;
+        } else if (
+          (eleccionUsuario === "piedra" && eleccionBot === "tijera") ||
+          (eleccionUsuario === "papel" && eleccionBot === "piedra") ||
+          (eleccionUsuario === "tijera" && eleccionBot === "papel")
+        ) {
+          resultado = `🎉 ¡Felicidades @${senderNumber}, ganaste! Elegiste *${eleccionUsuario}* y yo elegí *${eleccionBot}*.`;
+        } else {
+          resultado = `🤖 ¡Gané yo! Elegí *${eleccionBot}* y tú *${eleccionUsuario}*. ¡Más suerte la próxima!`;
+        }
+
+        await sock.sendMessage(
+          from,
+          { text: `🎮 *PIEDRA, PAPEL O TIJERA*\n\n${resultado}`, mentions: [sender], contextInfo: Marca_SicariOfc },
+          { quoted: msg }
+        );
+      }
+
+      // TRIVIA / ADIVINANZAS INTERACTIVA
+      if (command === "/trivia") {
+        const preguntasTrivia = [
+          { pregunta: "¿Cuál es el lenguaje de programación en el que está construido este bot?", respuesta: "javascript" },
+          { pregunta: "¿En qué país se originó la serie de Karate Kid / Cobra Kai?", respuesta: "estados unidos" },
+          { pregunta: "¿Cuántos colores principales tiene el arcoíris?", respuesta: "7" },
+          { pregunta: "¿Cuál es el planeta más grande de nuestro sistema solar?", respuesta: "jupiter" },
+          { pregunta: "¿Quién es mi creador?", respuesta: "SicarioOfc"},
+          { pregunta: "Cómo se llama es el dojo de Johnny Lawrence?", respuesta: "Cobra Kai"},
+          { pregunta: "¿Cómo se llama el dojo de Daniel Laruso", respuesta: "Miyaji-Do"},
+          { pregunta: "¿Cuál es el nombre del bot", respuesta: "CobraKaiBot V1"}
+        ];
+
+        const triviaAleatoria = preguntasTrivia[Math.floor(Math.random() * preguntasTrivia.length)];
+        
+        // Guardamos la trivia activa en este chat específico (expira o se reemplaza si lanzan otra)
+        triviasActivas.set(from, {
+          respuesta: triviaAleatoria.respuesta.toLowerCase(),
+          pregunta: triviaAleatoria.pregunta
+        });
+
+        const textoTrivia = 
+          `🧠 *TRIVIA DE GRUPO / CHAT* 🧠\n\n` +
+          `❓ *Pregunta:* ${triviaAleatoria.pregunta}\n\n` +
+          `_¡Escribe tu respuesta directamente en el chat para responder! Tienes una oportunidad._`;
+
+        await sock.sendMessage(
+          from,
+          { text: textoTrivia, contextInfo: Marca_SicariOfc },
+          { quoted: msg }
+        );
+        continue;
+      }
+
+      // RETO MATEMÁTICO PRO
+      if (command === "/math") {
+        // Si ya hay un reto activo en este chat, avisamos
+        if (mathActivos.has(from)) {
+          return sock.sendMessage(
+            from,
+            { text: "⚠️ Ya hay un reto matemático activo en este chat. ¡Resuélvelo antes de lanzar otro!", contextInfo: Marca_SicariOfc },
+            { quoted: msg }
+          );
+        }
+
+        const num1 = Math.floor(Math.random() * 50) + 1;
+        const num2 = Math.floor(Math.random() * 50) + 1;
+        
+        let operacionStr = `${num1} + ${num2}`;
+        let resultadoReal = num1 + num2;
+        
+        const tipoOp = Math.floor(Math.random() * 3);
+        if (tipoOp === 1) {
+          operacionStr = `${num1} - ${num2}`;
+          resultadoReal = num1 - num2;
+        } else if (tipoOp === 2) {
+          const n1 = Math.floor(Math.random() * 12) + 1;
+          const n2 = Math.floor(Math.random() * 12) + 1;
+          operacionStr = `${n1} × ${n2}`;
+          resultadoReal = n1 * n2;
+        }
+
+        // Creamos un temporizador de 60 segundos (1 minuto)
+        const timer = setTimeout(async () => {
+          if (mathActivos.has(from)) {
+            mathActivos.delete(from);
+            await sock.sendMessage(
+              from,
+              { 
+                text: `⏰ *¡TIEMPO AGOTADO!* \n\nNadie logró resolver el reto matemático a tiempo.\n\n🔢 *El resultado real era:* *${resultadoReal}*`, 
+                contextInfo: Marca_SicariOfc 
+              }
+            );
+          }
+        }, 60000); // 60,000 ms = 1 minuto
+
+        // Guardamos el reto activo
+        mathActivos.set(from, {
+          resultado: resultadoReal,
+          timer: timer
+        });
+
+        const textoMath = 
+          `🔢 *RETO MATEMÁTICO PRO* 🔢\n\n` +
+          `Resuelve rápido la siguiente operación:\n` +
+          `👉 *${operacionStr}* = ?\n\n` +
+          `⏱️ *Tienes 1 minuto* para escribir el resultado directamente en el chat. ¡El primero que le atine gana!`;
+
+        await sock.sendMessage(
+          from,
+          { text: textoMath, contextInfo: Marca_SicariOfc },
+          { quoted: msg }
+        );
+        continue;
+      }
+
+      // TRAGAMONEDAS / SLOT
+      if (command === "/slot") {
+        const simbolos = ["🍒", "🍋", "🍊", "🍇", "🔔", "⭐", "💎", " 7️⃣ "];
+        const s1 = simbolos[Math.floor(Math.random() * simbolos.length)];
+        const s2 = simbolos[Math.floor(Math.random() * simbolos.length)];
+        const s3 = simbolos[Math.floor(Math.random() * simbolos.length)];
+
+        let mensajeSlot = "";
+        if (s1 === s2 && s2 === s3) {
+          mensajeSlot = `🎉 ¡JACKPOT! ¡Has ganado el premio mayor de los dioses de CobraKai! 🏆`;
+        } else if (s1 === s2 || s2 === s3 || s1 === s3) {
+          mensajeSlot = `✨ ¡Casi lo logras! Tienes dos símbolos iguales, ¡inténtalo de nuevo!`;
+        } else {
+          mensajeSlot = `😢 Mala suerte, no hubo coincidencia. ¡Vuelve a tirar!`;
+        }
+
+        const respuestaSlot = 
+          `🎰 *TRAGAMONEDAS COBRAKAI* 🎰\n\n` +
+          `┌──────────────┐\n` +
+          `│  ${s1} │ ${s2} │ ${s3}  │\n` +
+          `└──────────────┘\n\n` +
+          `👤 *Jugador:* @${senderNumber}\n` +
+          `${mensajeSlot}`;
+
+        await sock.sendMessage(
+          from,
+          { text: respuestaSlot, mentions: [sender], contextInfo: Marca_SicariOfc },
+          { quoted: msg }
+        );
+      }
+
+      // SISTEMA DE JUEGOS PRO
+      
+      // COMANDO: /dojo (Elegir bando marcial)
+      if (command === "/dojo") {
+        if (!isGroup) {
+          return sock.sendMessage(from, { text: "⚠️ Este comando solo se puede usar en grupos.", contextInfo: Marca_SicariOfc }, { quoted: msg });
+        }
+
+        const bando = args[0] ? args[0].toLowerCase() : '';
+        if (bando !== 'cobrakai' && bando !== 'miyagido') {
+          return sock.sendMessage(from, { 
+            text: '👊 *Elige tu camino marcial:*\n\n👉 Usa */dojo cobrakai* (Tang Soo Do: Ataque rápido, agresivo y patadas potentes 🦅)\n👉 Usa */dojo miyagido* (Goju Ryu: Defensa, equilibrio y contraataque ☯️)',
+            contextInfo: Marca_SicariOfc 
+          }, { quoted: msg });
+        }
+
+        const dojoFinal = bando === 'cobrakai' ? 'Cobra Kai' : 'Miyagi-Do';
+        
+        // Registrar o actualizar el dojo del usuario en la base de datos
+        db.prepare(`
+          INSERT INTO juegos_stats (jid, usuario_id, nombre, puntos, victorias, dojo) 
+          VALUES (?, ?, ?, 0, 0, ?)
+          ON CONFLICT(jid) DO UPDATE SET dojo = ?, nombre = ?
+        `).run(sender, sender, pushName, dojoFinal, dojoFinal, pushName);
+
+        if (dojoFinal === 'Cobra Kai') {
+          await sock.sendMessage(from, { text: '🦅 ¡Bienvenido a *Cobra Kai*! Recuerda nuestro lema:\n*STRIKE FIRST. STRIKE HARD. NO MERCY!* 👊🔥', contextInfo: Marca_SicariOfc }, { quoted: msg });
+        } else {
+          await sock.sendMessage(from, { text: '☯️ ¡Bienvenido a *Miyagi-Do*! Recuerda las enseñanzas del Sr. Miyagi:\n*El karate es solo para defensa. El equilibrio es la clave.* 🪵✨', contextInfo: Marca_SicariOfc }, { quoted: msg });
+        }
+        continue;
+      }
+
+    
+      // COMANDO: /combate (Retar a un rival del grupo)
+      if (command === "/combate") {
+        if (!isGroup) {
+          return sock.sendMessage(from, { text: "⚠️ Este comando solo se puede usar en grupos.", contextInfo: Marca_SicariOfc }, { quoted: msg });
+        }
+
+        const rival = getTarget(msg, args);
+        if (!rival) {
+          return sock.sendMessage(from, { text: '🥋 Debes etiquetar o mencionar a un rival del grupo para retarlo al All Valley. \n\n*Ejemplo:* /combate @usuario', contextInfo: Marca_SicariOfc }, { quoted: msg });
+        }
+
+        if (rival === sender) {
+          return sock.sendMessage(from, { text: '🐍 No puedes pelear contra ti mismo, ¡no seas como Johnny Lawrence en sus peores días!', contextInfo: Marca_SicariOfc }, { quoted: msg });
+        }
+
+        const rivalNumber = rival.split("@")[0].replace(/\D/g, "");
+
+        // Asegurar que ambos jugadores existan en la tabla juegos_stats
+        db.prepare(`INSERT INTO juegos_stats (jid, usuario_id, nombre, puntos, dojo) VALUES (?, ?, ?, 0, 'Ninguno') ON CONFLICT(jid) DO NOTHING`).run(sender, sender, pushName);
+        db.prepare(`INSERT INTO juegos_stats (jid, usuario_id, nombre, puntos, dojo) VALUES (?, ?, ?, 0, 'Ninguno') ON CONFLICT(jid) DO NOTHING`).run(rival, rival, `Rival_${rivalNumber}`);
+
+        const retador = db.prepare('SELECT * FROM juegos_stats WHERE jid = ?').get(sender);
+        const oponente = db.prepare('SELECT * FROM juegos_stats WHERE jid = ?').get(rival);
+
+        let retadorAtaque = Math.floor(Math.random() * 40) + 50; // Base 50-90
+        let oponenteAtaque = Math.floor(Math.random() * 40) + 50;
+
+        let logCombate = `🥋 *TORNEO DE ARTES MARCIALES DE ALL VALLEY* 🥋\n\n`;
+        logCombate += `🥊 *@${senderNumber}* [${retador.dojo || 'Ninguno'}]  VS  *@${rivalNumber}* [${oponente.dojo || 'Ninguno'}]\n\n`;
+
+        // Modificadores según estilo marcial de Cobra Kai vs Miyagi-Do
+        if (retador.dojo === 'Cobra Kai') {
+          retadorAtaque += 8;
+          logCombate += `🦅 *@${senderNumber}* aplica la doctrina del *Tang Soo Do*: ¡Ataque veloz con patadas voladoras agresivas! (+8 Ataque)\n`;
+        } else if (retador.dojo === 'Miyagi-Do') {
+          oponenteAtaque -= 6;
+          logCombate += `☯️ *@${senderNumber}* usa la técnica del *Goju Ryu*: Enfocado en defensa perfecta y esquive. (-6 Daño Rival)\n`;
+        }
+
+        if (oponente.dojo === 'Cobra Kai') {
+          oponenteAtaque += 8;
+          logCombate += `🦅 *@${rivalNumber}* ruge con golpes directos de puño sin compasión. (+8 Ataque)\n`;
+        } else if (oponente.dojo === 'Miyagi-Do') {
+          retadorAtaque -= 6;
+          logCombate += `☯️ *@${rivalNumber}* encuentra su equilibrio interior barriendo el suelo con calma. (-6 Daño Rival)\n`;
+        }
+
+        logCombate += `\n⚡ *RESULTADO DEL COMBATE:*\n`;
+        logCombate += `💥 Impacto de @${senderNumber}: \`${retadorAtaque} pts\`\n`;
+        logCombate += `💥 Impacto de @${rivalNumber}: \`${oponenteAtaque} pts\`\n\n`;
+
+        if (retadorAtaque > oponenteAtaque) {
+          const puntosGanados = Math.floor(Math.random() * 15) + 10;
+          db.prepare('UPDATE juegos_stats SET puntos = puntos + ?, victorias = victorias + 1 WHERE jid = ?').run(puntosGanados, sender);
+          db.prepare('UPDATE juegos_stats SET puntos = MAX(0, puntos - 5) WHERE jid = ?').run(rival);
+          
+          logCombate += `🏆 ¡Ganador por decisión de los jueces: *@${senderNumber}*! 🔥\nSe lleva \`+${puntosGanados} puntos\` para el \`/top\`.`;
+        } else if (oponenteAtaque > retadorAtaque) {
+          const puntosGanados = Math.floor(Math.random() * 15) + 10;
+          db.prepare('UPDATE juegos_stats SET puntos = puntos + ?, victorias = victorias + 1 WHERE jid = ?').run(puntosGanados, rival);
+          db.prepare('UPDATE juegos_stats SET puntos = MAX(0, puntos - 5) WHERE jid = ?').run(sender);
+          
+          logCombate += `🏆 ¡El oponente *@${rivalNumber}* ejecutó un contraataque magistral y gana! 🔥\nSe lleva \`+${puntosGanados} puntos\` para el \`/top\`.`;
+        } else {
+          logCombate += `🤝 ¡Es un empate técnico! Ambos luchadores demostraron un respeto y nivel dignos del Sr. Miyagi y Sensei Lawrence. (0 puntos)`;
+        }
+
+        await sock.sendMessage(from, { text: logCombate, mentions: [sender, rival], contextInfo: Marca_SicariOfc }, { quoted: msg });
+        continue;
+      }
+
+     // TOPS DEL GRUPO
+      if (command === "/top") {
+        if (!isGroup) {
+          return sock.sendMessage(from, { text: "⚠️ Este comando solo se puede usar en grupos.", contextInfo: Marca_SicariOfc }, { quoted: msg });
+        }
+
+        // Obtener los mejores 10 jugadores ordenados por puntos de forma descendente
+        const topJugadores = db.prepare('SELECT nombre, jid, puntos, dojo FROM juegos_stats ORDER BY puntos DESC LIMIT 10').all();
+
+        if (topJugadores.length === 0 || topJugadores.every(j => j.puntos === 0)) {
+          return sock.sendMessage(from, { text: '🥋 Todavía no hay registros de combates con puntos. ¡Usa */combate* o participa en los juegos para ser el primero en pelear!', contextInfo: Marca_SicariOfc }, { quoted: msg });
+        }
+
+        let response = `🏆 *Clasificación General - Torneo de All Valley* 🏆\n\n`;
+        const mencionesTop = [];
+
+        topJugadores.forEach((jugador, index) => {
+          let medalla = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🥋';
+          let dojoTag = jugador.dojo === 'Cobra Kai' ? '🦅 (Cobra Kai)' : jugador.dojo === 'Miyagi-Do' ? '☯️ (Miyagi-Do)' : '👤 (Sin Dojo)';
+          let numUser = jugador.jid.split("@")[0];
+          
+          response += `${medalla} *${index + 1}. @${numUser}* ${dojoTag}\n   └─ Puntos: \`${jugador.puntos}\`\n`;
+          mencionesTop.push(jugador.jid);
+        });
+
+        response += `\n⚡ *No Mercy.* Entrena duro y usa */dojo* para elegir tu bando y escalar en el ranking.`;
+        
+        await sock.sendMessage(from, { text: response, mentions: mencionesTop, contextInfo: Marca_SicariOfc }, { quoted: msg });
+        continue;
+      }
+
+
+      // Menu APKS e IA
+     if (command === "/appsyextra") {
+        const { fechaReal, horaReal, pais, timeZone } = getFechaHoraPorNumero(
+          sender,
+          msg,
+        );
+
+        const usuarioBD = db
+          .prepare("SELECT nombre_completo FROM usuarios WHERE jid = ?")
+          .get(sender);
+        const nombreParaLog = usuarioBD ? usuarioBD.nombre_completo : (pushName || "Usuario");
+
+        console.log(
+          `[MENU4] Usuario: ${nombreParaLog} | País: ${pais} | Zona: ${timeZone} | Hora: ${horaReal}`,
+        );
 
         const response =
           `╭───◈ COBRAKAI - APKS e IA ◈───╮\n` +
@@ -2623,7 +3263,7 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
           `│ 🌎 Modo: ${isGroup ? "Grupo" : "Privado"}\n` +
           `│ 👤 User: @${senderNumber}\n` +
           `╰───────────────╯\n\n` +
-          `Hola ${nombreUsuario}, aquí tienes las herramientas de APKs e IA. 👾\n` +
+          `Hola ${nombreParaLog}, aquí tienes las herramientas de APKs e IA. 👾\n` +
           `⚠️ *Nota:* Los comandos marcados con [🔒] requieren registro previo con /reg\n\n` +
           `『 APKS PREMIUM 📱 』\n` +
           `├ • /mtmanag - Edit string/code [🔒]\n` +
@@ -2646,7 +3286,7 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         await sock.sendMessage(
           from,
           {
-            image: { url: "./img/cobrakai_menu3.png" },
+            image: { url: "./img/cobrakai_menu4.png" },
             caption: response,
             mentions: [sender],
           },
@@ -2654,7 +3294,7 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         );
 
         await sock.sendMessage(from, {
-          text: "📌 *Canal Oficial de Telegram:*",
+          text: "📌 *Canal Oficial de Telegram*",
           contextInfo: MarcaCanal_SicariOfc,
         });
       }
@@ -3383,10 +4023,8 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
       ];
 
       if (comandosAPKs.includes(command)) {
-        const urlGistB64 =
-          "aHR0cHM6Ly9naXN0LmdpdGh1YnVzZXJjb250ZW50LmNvbS9wcm9ncmFtYWRvcjAyNC84MjNiZjA4ZjM0OGZhNGY0ZWMzODc5NDYxMjNiMTE3Zi9yYXcvYXBwc19jb25maWcuanNvbg==";
-
-        const urlGist = Buffer.from(urlGistB64, "base64").toString("utf-8");
+        
+        const urlGist = Buffer.from(global.urlGistB64, "base64").toString("utf-8");
 
         const mapaComandos = {
           "/mtmanag": "mtmanager",
