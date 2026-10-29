@@ -3,9 +3,10 @@ import fs from 'fs';
 // Configuración de prefijos
 global.prefix = /^[./!#]/;
 
-// --- CONFIGURACIÓN DE UNSPLASH ---
-const _ENCODED_U_KEY = "U0lMRVJ4RzZHZHJ3cGNkQlA2Vm8wQ2pfd1NqcEVUS2puaHN0SFp2UXpwYw==";
-global.UNSPLASH_ACCESS_KEY = Buffer.from(_ENCODED_U_KEY, "base64").toString("utf-8");
+// --- CONFIGURACIÓN DE UNSPLASH - Access Key ---
+const _ENCODED_U_KEY = "U0lMRVJ4RzZHZHJ3cGNkQlA2Vm8wQ2pfd1NqcEVUa0puaHN0T1p2UXpwYw==";
+                        
+global.UNSPLASH_ACCESS_KEY = Buffer.from(_ENCODED_U_KEY, "base64").toString("utf-8").trim();
 
 // --- CONFIGURACIÓN DE GOOGLE CUSTOM SEARCH API ---
 const _ENCODED_G_KEY = "QUl6YVN5QzNMZHNxVFptNDVuMmJVS2dldVdQMmRESEtZT0tZVTZ3"; 
@@ -15,7 +16,7 @@ global.GOOGLE_API_KEY = Buffer.from(_ENCODED_G_KEY, "base64").toString("utf-8");
 global.GOOGLE_CX = Buffer.from(_ENCODED_G_CX, "base64").toString("utf-8");
 
 // --- URL GIST EN BASE64 ---
-global.urlGistB64 = "aHR0cHM6Ly9naXN0LmdpdGh1YnVzZXJjb250ZW50LmNvbS9wcm9ncmFtYWRvcjAyNC84MjNiZjA4ZjM0OGZhNGY0ZWMzODc5NDYxMjNiMTE3Zi9yYXcvYXBwc19jb25figuanNvbg==";
+global.urlGistB64 = "aHR0cHM6Ly9naXN0LmdpdGh1YnVzZXJjb250ZW50LmNvbS9wcm9ncmFtYWRvcjAyNC84MjNiZjA4ZjM0OGZhNGY0ZWMzODc5NDYxMjNiMTE3Zi9yYXcvYXBwc19jb25maWcuanNvbg==";
 
 // --- MARCAS DE AGUA ---
 global.Marca_SicariOfc = {

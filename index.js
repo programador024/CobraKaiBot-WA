@@ -355,25 +355,48 @@ function mostrarBannerConsole() {
 }
 
 async function buscarImagen(query) {
+  // 1. Intento principal con Unsplash
   try {
-    const url = `https://api.unsplash.com/search/photos?page=1&per_page=10&query=${encodeURIComponent(
-      query,
-    )}&client_id=${UNSPLASH_ACCESS_KEY}`;
+    const url = `https://api.unsplash.com/search/photos?page=1&per_page=15&query=${encodeURIComponent(query)}`;
+    
+    const res = await fetch(url, {
+      headers: {
+        'Authorization': `Client-ID ${global.UNSPLASH_ACCESS_KEY}`
+      }
+    });
 
-    const res = await fetch(url);
-    if (!res.ok) return null;
-
-    const data = await res.json();
-    if (!data.results || data.results.length === 0) return null;
-
-    const randomIndex = Math.floor(
-      Math.random() * Math.min(data.results.length, 5),
-    );
-    return data.results[randomIndex].urls.regular;
+    if (res.ok) {
+      const data = await res.json();
+      if (data.results && data.results.length > 0) {
+        const randomIndex = Math.floor(Math.random() * Math.min(data.results.length, 5));
+        return data.results[randomIndex].urls.regular;
+      }
+    } else {
+      console.log("Unsplash respondió con estatus:", res.status);
+    }
   } catch (error) {
-    console.error("Error al buscar imagen en Unsplash:", error.message);
-    return null;
+    console.error("Error en Unsplash:", error.message);
   }
+
+  // 2. Respaldo secundario con Google Custom Search API
+  try {
+    if (global.GOOGLE_CX && global.GOOGLE_API_KEY) {
+      const googleImgUrl = `https://www.googleapis.com/customsearch/v1?q=${encodeURIComponent(query)}&cx=${global.GOOGLE_CX}&key=${global.GOOGLE_API_KEY}&searchType=image&num=5`;
+
+      const resG = await fetch(googleImgUrl);
+      if (resG.ok) {
+        const dataG = await resG.json();
+        if (dataG.items && dataG.items.length > 0) {
+          const randomImg = dataG.items[Math.floor(Math.random() * dataG.items.length)];
+          return randomImg.link;
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Error en respaldo de Google Images:", e.message);
+  }
+
+  return null;
 }
 
 async function descargarImagenBuffer(url) {
@@ -888,7 +911,7 @@ async function connectToWhatsApp(isReconnect = false) {
       }
     } else if (connection === "open") {
       const b1 = "=============================================";
-      const b2 = "🤖 CobraKaiBot conectado con éxito a WhatsApp";
+      const b2 = "🐍 CobraKaiBot conectado con éxito a WhatsApp";
 
       const pB1 = Math.max(0, Math.floor((anchoTerminal - b1.length) / 2));
       const pB2 = Math.max(0, Math.floor((anchoTerminal - b2.length) / 2));
@@ -919,25 +942,26 @@ async function connectToWhatsApp(isReconnect = false) {
       const groupName = groupMetadata.subject;
       const groupDesc = groupMetadata.desc
         ? groupMetadata.desc.toString()
-        : "Sin descripción disponible.";
+        : "> *¡Strike First. Strike Hard. No Mercy!* 🐍"; //Si no tiene descripción lo ponemos por default
 
-      // --- ARRAYS DE MENSAJES DIVERTIDOS ---
+      // --- ARRAYS DE MENSAJES DIVERTIDOS (ESTILO COBRA KAI) ---
       const frasesBienvenida = [
-        `👋 ¡Miren todos! Llegó @{userNumber}. Por favor, actúen como personas normales durante 5 minutos.`,
-        `🚨 ¡Alerta de nuevo humano detectado! Bienvenido @{userNumber}. Trae botanas o el administrador te baneará. 🍟`,
-        `🤠 ¡Epa @{userNumber}! Entraste bajo tu propio riesgo a *${groupName}*. Acomódate y saca el chisme.`,
-        `🥳 ¡Por fin alguien con buena vibra! Bienvenido/a @{userNumber}. Aquí todos estamos locos, pero te va a encantar.`,
-        `⚔️ ¡Miren todos! Entro al combate @{userNumber}. es hora del duelo en el grupo.`,
-        `🐍 Hola @{userNumber}, Cobra Kai y todo el grupo te da la bienvenida.`,
+        `👋 ¡Miren quién decidió unirse al dojo! Bienvenido/a @{userNumber}. Más te vale calentar bien antes de pisar el tatami. 🥋`,
+        `🚨 ¡Alerta de nuevo recluta! @{userNumber} ha entrado al territorio. Aquí se entrena duro o te vas a la banca. 🦅`,
+        `⚔️ ¡Un nuevo retador aparece! Bienvenido/a @{userNumber}. Demuestra de qué estás hecho.`,
+        `🔥 ¡Strike First! Bienvenido/a @{userNumber}. Trae tu mejor técnica o el Sensei te pondrá a hacer mil lagartijas. 💪`,
+        `☯️ ¡El equilibrio ha llegado! Bienvenido/a @{userNumber}. Recuerda: el karate es para defensa, pero aquí nos encanta el combate.`,
+        `🤠 ¡Epa @{userNumber}! Entraste bajo tu propio riesgo a este grupo. Acomódate y saca el chisme, ¡sin piedad! 🐍`,
+        `🥳 ¡Por fin alguien con buena actitud! Bienvenido/a @{userNumber}. Aquí todos estamos un poco locos, pero te va a encantar.`
       ];
 
       const frasesDespedida = [
-        `🚪 Alguien no aguantó el estilo neutrón... @{userNumber} ha abandonado el barco. ¡Nos vemos en el próximo reinicio! 🤖`,
-        `💸 Se nos fue @{userNumber}. Seguro se enteró de que aquí cobramos renta por estar en el grupo.`,
-        `🏃‍♂️ ¡Soldado caído! @{userNumber} aplicó la de "ir por cigarros" y no volvió. Se le extrañará... o tal vez no. 🤔`,
-        `👋 @{userNumber} ha salido del grupo. Dejemos un minuto de silencio... Bueno, ya pasó, ¿quién tiene hambre?`,
-        `🗡️ No aguanto el combate @{userNumber}. Tenemos un perdedor caido en el grupo.`,
-        `🐍 Hasta luego @{userNumber} Cobra Kai y el grupo te dice adios.`,
+        `🚪 Alguien no aguantó el estilo de Cobra Kai... @{userNumber} ha abandonado el barco. ¡Sin piedad hasta en la huida! 🤖`,
+        `💸 Se nos fue @{userNumber}. Seguro se enteró de que aquí cobramos renta en puntos del dojo y se asustó. 🏃‍♂️`,
+        `🏃‍♂️ ¡Soldado caído! @{userNumber} aplicó la de "ir por cigarros" y no volvió a la lona. Se le extrañará... o tal vez no. 🤔`,
+        `👋 @{userNumber} ha salido del grupo. Dejemos un minuto de silencio... Bueno, ya pasó, ¿quién sigue en el torneo? 🥋`,
+        `🗡️ No aguantó el calor del combate. @{userNumber} se retiró como un perdedor. ¡No Mercy! 🐍`,
+        `💥 ¡Eliminado del torneo All Valley! @{userNumber} decidió abandonar el grupo. ¡Nos vemos en el próximo combate! 🏆`
       ];
 
       for (const num of participants) {
@@ -1239,10 +1263,10 @@ async function connectToWhatsApp(isReconnect = false) {
         "/telegprem",
         "/teamzetpriv",
         "/base64pro",
-        "/imagen",
-        "/musica",
-        "/video",
-        "/aibuscar",
+        "/img",
+        "/play",
+        "/ytmp4",
+        "/search",
         "/aisticker",
         "/toimg",
         "/s",
@@ -1447,7 +1471,7 @@ async function connectToWhatsApp(isReconnect = false) {
         }
       }
 
-
+      // Menu principal
       if (command === "/start" || command === "/menu") {
         const { fechaReal, horaReal, pais, timeZone } = getFechaHoraPorNumero(
           sender,
@@ -1460,42 +1484,44 @@ async function connectToWhatsApp(isReconnect = false) {
         const nombreParaLog = usuarioBD ? usuarioBD.nombre_completo : (pushName || "Usuario");
 
         console.log(
-          `[MENU1] Usuario: ${nombreParaLog} | País: ${pais} | Zona: ${timeZone} | Hora: ${horaReal}`,
+          `[MENU1] Usuario:${nombreParaLog} |País:${pais} |Zona:${timeZone} |Hora:${horaReal}`,
         );
 
         const response =
-          `╭───◈ COBRAKAI - WA ◈───╮\n` +
-          `│ 🤖 Bot: CobraKai Bot V1\n` +
-          `│ 👑 Creador: SicarioOfc\n` +
-          `│ 📅${fechaReal}🕒${horaReal}🌎${pais}\n` +
-          `│ 🌎 Modo: ${isGroup ? "Grupo" : "Privado"}\n` +
-          `│ 👤 User: @${senderNumber}\n` +
-          `╰───────────────╯\n\n` +
-          `Hola ${nombreParaLog}, soy tu asistente virtual. 🐍\n\n` +
-          `『 PRINCIPAL 』\n` +
-          `├ • /menu - Ver menú principal\n` +
-          `├ • /info - Prefijos del bot\n` +
-          `├ • /ping - Velocidad del bot\n` +
-          `├ • /status - Estado del bot\n` +
-          `├ • /creador - Mi creador\n` +
-          `└ • /repo - Repositorio oficial\n\n` +
-          `『 REGISTRO 🔐 』\n` +
-          `├ • /reg Rol | Fecha | Nombre\n` +
-          `├ • /perfil - Ver tu perfil\n` +
-          `├ • /edituser - Editar perfil\n` +
-          `└ • /deleteusuario - Borrar datos\n\n` +
-          `『 GRUPO 👥 』\n` +
-          `├ • /tagall - Mencionar a todos\n` +
-          `├ • /addadmin - Dar admin bot\n` +
-          `├ • /link - Link del grupo\n` +
-          `├ • /extgrup - Menu adm group\n` +
-          `└ • /gamegroup - Menu Juegos\n\n` +
-          `『 EXTRAS & REDES 🚀 』\n` +
-          `├ • /appsyextra - Menu APKs e IA[🔒]\n` +
-          `├ • /canteleg - Canal Telegram\n` +
-          `├ • /canyoutub - Canal YouTube\n` +
-          `├ • /paginaweb - Página oficial\n` +
-          `└ • /paypalme - Apoyo donación`;
+          `╭─── ⟨ *COBRA KAI - WA* ⟩ ───╮\n` +
+          `│ 🤖 *Bot:* CobraKai Bot V1\n` +
+          `│ 👑 *Creador:* SicarioOfc\n` +
+          `│ 📅 ${fechaReal} │ 🕒 ${horaReal}\n` +
+          `│ 🌎 *País:* ${pais} (${isGroup ? "👥 Grupo" : "👤 Privado"})\n` +
+          `│ ⌨️ *Prefijo:* [ / ] *(acepta . # !)*\n` +
+          `│ 👤 *User:* @${senderNumber}\n` +
+          `╰────────────────────────╯\n\n` +
+          `¡Oss, *${nombreParaLog}*! Bienvenido a tu dojo virtual. 🦅\n\n` +
+          `╭━━━ ⚡ *PRINCIPAL* ⚡━━━╮\n` +
+          `┃ 🦅 /menu - Menú principal\n` +
+          `┃ 🦅 /info - Prefijos y ayuda\n` +
+          `┃ 🦅 /ping - Velocidad del bot\n` +
+          `┃ 🦅 /status - Estado del sistema\n` +
+          `┃ 🦅 /creador - Información dev\n` +
+          `┗ 🦅 /repo - Repositorio oficial\n\n` +
+          `╭━━━ 🔐 *REGISTRO* 🔐━━━╮\n` +
+          `┃ 🥋 /reg Rol | Fecha | Nombre\n` +
+          `┃ 🥋 /perfil - Ver tu tarjeta\n` +
+          `┃ 🥋 /edituser - Actualizar datos\n` +
+          `┗ 🥋 /deleteusuario - Borrar perfil\n\n` +
+          `╭━━━ 👥 *GRUPO & DOJO* ━━━╮\n` +
+          `┃ ⚔️ /tagall - Invocación general\n` +
+          `┃ ⚔️ /addadmin - Promover bot\n` +
+          `┃ ⚔️ /link - Enlace del grupo\n` +
+          `┃ ⚔️ /extgrup - Menú de admins\n` +
+          `┗ ⚔️ /gamegroup - Zona de juegos\n\n` +
+          `╭━━━ 🚀 *EXTRAS & IA* ━━━╮\n` +
+          `┃ 🏮 /appsyextra - APKs e IA [🔒]\n` +
+          `┃ 🏮 /canteleg - Canal Telegram\n` +
+          `┃ 🏮 /canyoutub - Canal YouTube\n` +
+          `┃ 🏮 /paginaweb - Sitio web oficial\n` +
+          `┗ 🏮 /paypalme - Apoya el proyecto\n\n` +
+          `> *¡Strike First. Strike Hard. No Mercy!* 🐍`;
 
         await sock.sendMessage(
           from,
@@ -1512,6 +1538,7 @@ async function connectToWhatsApp(isReconnect = false) {
           contextInfo: MarcaCanal_SicariOfc,
         });
       }
+
 if (command === "/info") {
         const textoInfo =
           `┌───  *INFORMACIÓN DEL BOT*  ───┐\n` +
@@ -1993,7 +2020,7 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
             `🏫 *Dojo:* ${dojoInfo}\n` +
             `🏆 *Puntos:* \`${puntosInfo}\`\n` +
             `🎯 *Victorias:* \`${victoriasInfo}\`\n\n` +
-            `_⚡ Usa /dojo para unirte a un bando y\n/combate para ganar puntos._`;
+            `> ⚡ Usa /dojo para unirte a un bando y\n> ⚔️ /combate para ganar puntos.`;
 
           if (user.foto) {
             await sock.sendMessage(
@@ -2039,8 +2066,8 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         }
       }
 
-      // Menu admin group
-     if (command === "/extgrup") {
+     // Menu admin group
+      if (command === "/extgrup") {
         if (!isGroup) {
           return sock.sendMessage(
             from,
@@ -2062,37 +2089,41 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         const nombreParaLog = usuarioBD ? usuarioBD.nombre_completo : (pushName || "Usuario");
 
         console.log(
-          `[MENU2] Usuario: ${nombreParaLog} | País: ${pais} | Zona: ${timeZone} | Hora: ${horaReal}`,
+          `[MENU2] Usuario:${nombreParaLog} |País:${pais} |Zona:${timeZone} |Hora:${horaReal}`,
         );
 
         const response =
-          `╭───◈COBRAKAI - ADMIN GRUP◈─╮\n` +
-          `│ 🤖 Bot: CobraKai Bot V1\n` +
-          `│ 👑 Creador: SicarioOfc\n` +
-          `│ 📅${fechaReal}🕒${horaReal}🌎${pais}\n` +
-          `│ 🌎 Modo: Grupo\n` +
-          `│ 👤 User: @${senderNumber}\n` +
-          `╰───────────────╯\n\n` +
-          `Hola ${nombreParaLog}, aquí tienes las herramientas extras para grupo. 👾\n` +
-          `⚠️ *Nota:* Estos comandos solo estan permitidos para admins del grupo.\n\n` +
-          `『 ADMINS GRUPO 🛡️ 』\n` +
-          `├ • /hidetag <text> - Mención oculta\n` +
-          `├ • /kick <@user> - Sacar usuario\n` +
-          `├ • /promote <@user> - Dar admin\n` +
-          `├ • /demote <@user> - Quitar admin\n` +
-          `├ • /welcome <on/off> - Activar/desactivar bienvenida\n` +
-          `├ • /goodbye <on/off> - Activar/desactivar despedida\n` +
-          `├ • /revoke - Resetear link\n` +
-          `├ • /antilink <on/off> - Activar/desactivar link\n` +
-          `├ • /antiinsultos <on/off> - Activar/desactivar insultos\n` +
-          `├ • /open - Abrir grupo\n` +
-          `├ • /close - Cerrar grupo\n` +
-          `├ • /setname <text> - Edit nombre\n` +
-          `├ • /setdesc <text> - Edit descripción\n` +
-          `├ • /warn <@user> motivo - Advertir\n` +
-          `├ • /warns <@user>- Ver advertencias\n` +
-          `├ • /delwarn <@user> - Quitar advertencia\n` +
-          `└ • /resetwarn<@user> - Reset advertencia`;
+          `╭─── ⟨ *ADMINISTRACIÓN* ⟩ ───╮\n` +
+          `│ 🤖 *Bot:* CobraKai Bot V1\n` +
+          `│ 👑 *Creador:* SicarioOfc\n` +
+          `│ 📅 ${fechaReal} │ 🕒 ${horaReal}\n` +
+          `│ 🌎 *País:* ${pais} (${isGroup ? "👥 Grupo" : "👤 Privado"})\n` +
+          `│ ⌨️ *Prefijo:* [ / ] *(acepta . # !)*\n` +
+          `│ 👤 *User:* @${senderNumber}\n` +
+          `╰────────────────────────╯\n\n` +
+          `¡Atención, *${nombreParaLog}*! Panel de control exclusivo para líderes del dojo. 🛡️\n\n` +
+          `╭━━━ 👥 *GESTIÓN DE MIEMBROS* ━━━╮\n` +
+          `┃ ⚔️ /hidetag <texto> - Mención oculta\n` +
+          `┃ ⚔️ /kick <@user> - Expulsar usuario\n` +
+          `┃ ⚔️ /promote <@user> - Dar admin\n` +
+          `┗ ⚔️ /demote <@user> - Quitar admin\n\n` +
+          `╭━━━ ⚙️ *AJUSTES DEL GRUPO* ━━━╮\n` +
+          `┃ 🛡️ /open - Abrir chat\n` +
+          `┃ 🛡️ /close - Cerrar chat (Solo admins)\n` +
+          `┃ 🛡️ /setname <texto> - Cambiar nombre\n` +
+          `┃ 🛡️ /setdesc <texto> - Cambiar descrip\n` +
+          `┗ 🛡️ /revoke - Restablecer enlace\n\n` +
+          `╭━━━ 🤖 *AUTOMA/SEGURIDAD* ━━━╮\n` +
+          `┃ 🏮 /welcome <on/off> - Bienvenidas\n` +
+          `┃ 🏮 /goodbye <on/off> - Despedidas\n` +
+          `┃ 🏮 /antilink <on/off> - Anti enlaces\n` +
+          `┗ 🏮 /antiinsul <on/off>-Antigroserías\n\n` +
+          `╭━━━ ⚠️ *SISTEMA DE FALTAS* ━━━╮\n` +
+          `┃ ⚡ /warn <@user> <motivo> - Advertir\n` +
+          `┃ ⚡ /warns <@user> - Ver faltas\n` +
+          `┃ ⚡ /delwarn <@user> - Quitar falta\n` +
+          `┗ ⚡ /resetwarn <@user> - Borrar adv\n\n` +
+          `> *Nota:* Comandos exclusivos para administradores del grupo. 🦅`;
 
         await sock.sendMessage(
           from,
@@ -2433,7 +2464,7 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         }
       }
 
-      if (command === "/antiinsultos") {
+      if (command === "/antiinsul") {
         if (!isGroup) {
           return sock.sendMessage(
             from,
@@ -2460,7 +2491,7 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
           return sock.sendMessage(
             from,
             {
-              text: "⚠️ *Uso correcto:*\n\n• */antiinsultos on* (Activa la protección)\n• */antiinsultos off* (Desactiva la protección)",
+              text: "⚠️ *Uso correcto:*\n\n• */antiinsul on* (Activa la protección)\n• */antiinsul off* (Desactiva la protección)",
             },
             { quoted: msg },
           );
@@ -2854,33 +2885,39 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         const nombreParaLog = usuarioBD ? usuarioBD.nombre_completo : (pushName || "Usuario");
 
         console.log(
-          `[MENU3] Usuario: ${nombreParaLog} | País: ${pais} | Zona: ${timeZone} | Hora: ${horaReal}`,
+          `[MENU3] Usuario:${nombreParaLog} |País:${pais} |Zona:${timeZone} |Hora:${horaReal}`,
         );
 
         const response =
-          `╭───◈COBRAKAI - GAME GRUP◈─╮\n` +
-          `│ 🤖 Bot: CobraKai Bot V1\n` +
-          `│ 👑 Creador: SicarioOfc\n` +
-          `│ 📅${fechaReal}🕒${horaReal}🌎${pais}\n` +
-          `│ 🌎 Modo: Grupo\n` +
-          `│ 👤 User: @${senderNumber}\n` +
-          `╰───────────────╯\n\n` +
-          `Hola ${nombreParaLog}, aquí tienes el menu de juegos para grupo. 👾\n\n` +
-          `『 JUEGOS BASICO 🎮 』\n` +
-          `├ • /ttt - Gato / TicTacToe\n` +
-          `├ • /ppt - Piedra, papel, tijera\n` +
-          `├ • /trivia - Adivinanzas\n` +
-          `├ • /math - Reto matemático\n` +
-          `└ • /slot - Tragamonedas\n` +
-          `『 JUEGOS PRO 🏆 』\n` +
-          `├ • /dojo - Elije tu dojo\n` +
-          `├ • /combate - Retar usuario\n` +
-          `└ •/top - Tops del grupo`;
+          `╭─── ⟨ *ZONA DE JUEGOS* ⟩ ───╮\n` +
+          `│ 🤖 *Bot:* CobraKai Bot V1\n` +
+          `│ 👑 *Creador:* SicarioOfc\n` +
+          `│ 📅 ${fechaReal} │ 🕒 ${horaReal}\n` +
+          `│ 🌎 *País:* ${pais} (${isGroup ? "👥 Grupo" : "👤 Privado"})\n` +
+          `│ ⌨️ *Prefijo:* [ / ] *(acepta . # !)*\n` +
+          `│ 👤 *User:* @${senderNumber}\n` +
+          `╰────────────────────────╯\n\n` +
+          `¡Prepárate para el combate, *${nombreParaLog}*! Elige tu desafío y demuestra de qué estás hecho. 🎮\n\n` +
+          `╭━━━ 🕹️ *JUEGOS BÁSICOS* ━━━╮\n` +
+          `┃ 🎯 /ttt - Gato / TicTacToe\n` +
+          `┃ 🎯 /ppt - Piedra, papel o tijera\n` +
+          `┃ 🎯 /trivia - Adivinanzas y retos\n` +
+          `┃ 🎯 /math - Reto matemático\n` +
+          `┗ 🎯 /slot - Tragamonedas de la suerte\n\n` +
+          `╭━━━ 🏆 *TORNEO ALL VALLEY* ━━━╮\n` +
+          `┃ 🥋 /dojo - Elige tu bando marcial\n` +
+          `┃ 🥋 /entrenar - Entrenamiento diario\n` +
+          `┃ 🥋 /combate - Reta a un rival en duelo\n` +
+          `┃ 🥋 /apostar <@user> <pts> - Duelo con apuesta\n` +
+          `┃ 🥋 /mision - Misión aleatoria de dojo\n` +
+          `┃ 🥋 /top - Clasificación general\n` +
+          `┗ 🥋 /retoraptor - Desafía a un Sensei IA\n\n` +
+          `> *¡Strike First. Strike Hard. No Mercy!* 🦅`;
 
         await sock.sendMessage(
           from,
           {
-            image: { url: "./img/cobrakai_menu3.png" },
+            image: { url: "./img/cobrakai_menu3.png" }, // Asegúrate de que apunte a su respectiva imagen o menú correspondiente
             caption: response,
             mentions: [sender],
           },
@@ -2985,7 +3022,22 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
           { pregunta: "¿Quién es mi creador?", respuesta: "SicarioOfc"},
           { pregunta: "Cómo se llama es el dojo de Johnny Lawrence?", respuesta: "Cobra Kai"},
           { pregunta: "¿Cómo se llama el dojo de Daniel Laruso", respuesta: "Miyaji-Do"},
-          { pregunta: "¿Cuál es el nombre del bot", respuesta: "CobraKaiBot V1"}
+          { pregunta: "¿Cuál es el nombre del bot", respuesta: "CobraKaiBot V1"},
+          { pregunta: "¿Cuál es el lema de Cobra Kai?", respuesta: "strike first strike hard no mercy"},
+          { pregunta: "¿Cuál es el nombre del Sensei de Cobra Kai?", respuesta: "johnny lawrence"},
+          { pregunta: "¿Cuál es el nombre del Sensei de Miyagi-Do?", respuesta: "daniel larusso"},
+          { pregunta: "¿Cuál es el nombre del Sensei de Eagle Fang?", respuesta: "roberto diaz"},
+          { pregunta: "¿Cuál es el nombre del Sensei de Cobra Kai en la temporada 5?", respuesta: "johnny lawrence"},
+          { pregunta: "¿Cuál es el nombre del Sensei de Miyagi-Do en la temporada 5?", respuesta: "daniel larusso"},
+          { pregunta: "¿Cuál es el nombre del Sensei de Eagle Fang en la temporada 5?", respuesta: "roberto diaz"},
+          { pregunta: "¿Cuál es el nombre del Sensei de Cobra Kai en la temporada 4?", respuesta: "johnny lawrence"},
+          { pregunta: "¿Cuál es el nombre del Sensei de Miyagi-Do en la temporada 4?", respuesta: "daniel larusso"},
+          { pregunta: "¿Cuál es el nombre del Sensei de Eagle Fang en la temporada 4?", respuesta: "roberto diaz"},
+          { pregunta: "¿Cuál es el nombre del Sensei de Cobra Kai en la temporada 3?", respuesta: "johnny lawrence"},
+          { pregunta: "¿Cuál es el nombre del Sensei de Miyagi-Do en la temporada 3?", respuesta: "daniel larusso"},
+          { pregunta: "¿Cuál es el nombre del Sensei de Eagle Fang en la temporada 3?", respuesta: "roberto diaz"},
+          { pregunta: "Quienes son los protagonistas principales de Cobra kai?", respuesta: "johnny lawrence y daniel larusso"},
+          { pregunta: "Quienes son los villanos principales de Cobra Kai?", respuesta: "john kreese y terry silver"}
         ];
 
         const triviaAleatoria = preguntasTrivia[Math.floor(Math.random() * preguntasTrivia.length)];
@@ -3102,7 +3154,7 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         );
       }
 
-      // SISTEMA DE JUEGOS PRO
+      // SISTEMA DE JUEGOS PRO COBRA KAI
       
       // COMANDO: /dojo (Elegir bando marcial)
       if (command === "/dojo") {
@@ -3134,6 +3186,34 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         }
         continue;
       }
+
+      // COMANDO: /entrenar (Entrenamiento diario para ganar puntos y disciplina)
+      if (command === "/entrenar") {
+        if (!isGroup) {
+          return sock.sendMessage(from, { text: "⚠️ Este comando solo se puede usar en grupos.", contextInfo: Marca_SicariOfc }, { quoted: msg });
+        }
+
+        // Asegurar que el usuario exista en la tabla de juegos_stats
+        db.prepare(`INSERT INTO juegos_stats (jid, usuario_id, nombre, puntos, dojo) VALUES (?, ?, ?, 0, 'Ninguno') ON CONFLICT(jid) DO NOTHING`).run(sender, sender, pushName);
+        
+        const puntosEntrenamiento = Math.floor(Math.random() * 10) + 5; // Entre 5 y 14 puntos
+        db.prepare('UPDATE juegos_stats SET puntos = puntos + ? WHERE jid = ?').run(puntosEntrenamiento, sender);
+
+        const frasesEntreno = [
+          `🪵 Golpeaste el tronco de madera en el patio del dojo sin piedad. ¡Has ganado +${puntosEntrenamiento} puntos de disciplina!`,
+          `🔥 Practicaste katas bajo la lluvia y patadas con salto. ¡Has ganado +${puntosEntrenamiento} puntos de fuerza!`,
+          `👊 Rompiste 3 tablas de madera de un solo golpe limpio. ¡Has ganado +${puntosEntrenamiento} puntos de técnica!`,
+          `🌊 Realizaste el equilibrio sobre la tabla flotante del Sensei Miyagi. ¡Has ganado +${puntosEntrenamiento} puntos de concentración!`
+        ];
+        const fraseAleatoria = frasesEntreno[Math.floor(Math.random() * frasesEntreno.length)];
+
+        await sock.sendMessage(
+          from,
+          { text: `🥋 *¡ENTRENAMIENTO DURO!* 🥋\n\n@${senderNumber}\n${fraseAleatoria}`, mentions: [sender], contextInfo: Marca_SicariOfc },
+          { quoted: msg }
+        );
+        continue;
+      } 
 
     
       // COMANDO: /combate (Retar a un rival del grupo)
@@ -3207,6 +3287,92 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         continue;
       }
 
+      // COMANDO: /apostar (Duelo con apuesta de puntos entre dos rivales)
+      if (command === "/apostar" || command === "/duelo") {
+        if (!isGroup) {
+          return sock.sendMessage(from, { text: "⚠️ Este comando solo se puede usar en grupos.", contextInfo: Marca_SicariOfc }, { quoted: msg });
+        }
+
+        const rival = getTarget(msg, args);
+        const cantidadApostada = parseInt(args[1]) || 10;
+
+        if (!rival) {
+          return sock.sendMessage(from, { text: "⚠️ Debes etiquetar a un oponente y definir los puntos a apostar.\n\n*Ejemplo:* `/apostar @usuario 15`", contextInfo: Marca_SicariOfc }, { quoted: msg });
+        }
+        if (rival === sender) {
+          return sock.sendMessage(from, { text: "❌ No puedes apostar contra ti mismo.", contextInfo: Marca_SicariOfc }, { quoted: msg });
+        }
+
+        db.prepare(`INSERT INTO juegos_stats (jid, usuario_id, nombre, puntos, dojo) VALUES (?, ?, ?, 0, 'Ninguno') ON CONFLICT(jid) DO NOTHING`).run(sender, sender, pushName);
+        db.prepare(`INSERT INTO juegos_stats (jid, usuario_id, nombre, puntos, dojo) VALUES (?, ?, ?, 0, 'Ninguno') ON CONFLICT(jid) DO NOTHING`).run(rival, rival, `Rival`);
+
+        const retadorData = db.prepare('SELECT puntos FROM juegos_stats WHERE jid = ?').get(sender);
+        const rivalData = db.prepare('SELECT puntos FROM juegos_stats WHERE jid = ?').get(rival);
+
+        if (retadorData.puntos < cantidadApostada) {
+          return sock.sendMessage(from, { text: `❌ No tienes suficientes puntos para esta apuesta. Tus puntos actuales: \`${retadorData.puntos}\`.`, contextInfo: Marca_SicariOfc }, { quoted: msg });
+        }
+        if (rivalData.puntos < cantidadApostada) {
+          return sock.sendMessage(from, { text: `❌ Tu oponente no tiene suficientes puntos en el ranking para igualar la apuesta de \`${cantidadApostada}\`.`, contextInfo: Marca_SicariOfc }, { quoted: msg });
+        }
+
+        const rivalNumber = rival.split("@")[0].replace(/\D/g, "");
+        let dadoRetador = Math.floor(Math.random() * 6) + 1;
+        let dadoRival = Math.floor(Math.random() * 6) + 1;
+
+        let textoApuesta = `⚔️ *DUELO CON APUESTA EN EL ALL VALLEY* ⚔️\n\n`;
+        textoApuesta += `👤 @${senderNumber} apostó \`${cantidadApostada} pts\` contra @${rivalNumber}.\n\n`;
+        textoApuesta += `🎲 Tirada de @${senderNumber}: *${dadoRetador}*\n`;
+        textoApuesta += `🎲 Tirada de @${rivalNumber}: *${dadoRival}*\n\n`;
+
+        if (dadoRetador > dadoRival) {
+          db.prepare('UPDATE juegos_stats SET puntos = puntos + ? WHERE jid = ?').run(cantidadApostada, sender);
+          db.prepare('UPDATE juegos_stats SET puntos = MAX(0, puntos - ?) WHERE jid = ?').run(cantidadApostada, rival);
+          textoApuesta += `🏆 ¡Victoria para @${senderNumber}! Se lleva el botín de \`+${cantidadApostada} puntos\`.`;
+        } else if (dadoRival > dadoRetador) {
+          db.prepare('UPDATE juegos_stats SET puntos = MAX(0, puntos - ?) WHERE jid = ?').run(cantidadApostada, sender);
+          db.prepare('UPDATE juegos_stats SET puntos = puntos + ? WHERE jid = ?').run(cantidadApostada, rival);
+          textoApuesta += `🏆 ¡Victoria para @${rivalNumber}! Se defiende con éxito y gana \`+${cantidadApostada} puntos\`.`;
+        } else {
+          textoApuesta += `🤝 ¡Empate en los dados! Nadie pierde ni gana puntos en esta ronda de práctica.`;
+        }
+
+        await sock.sendMessage(
+          from,
+          { text: textoApuesta, mentions: [sender, rival], contextInfo: Marca_SicariOfc },
+          { quoted: msg }
+        );
+        continue;
+      }
+
+      // COMANDO: /mision (Evento aleatorio del dojo)
+      if (command === "/mision" || command === "/evento") {
+        if (!isGroup) {
+          return sock.sendMessage(from, { text: "⚠️ Este comando solo se puede usar en grupos.", contextInfo: Marca_SicariOfc }, { quoted: msg });
+        }
+
+        db.prepare(`INSERT INTO juegos_stats (jid, usuario_id, nombre, puntos, dojo) VALUES (?, ?, ?, 0, 'Ninguno') ON CONFLICT(jid) DO NOTHING`).run(sender, sender, pushName);
+        
+        const recompensa = Math.floor(Math.random() * 15) + 10;
+        db.prepare('UPDATE juegos_stats SET puntos = puntos + ? WHERE jid = ?').run(recompensa, sender);
+
+        const misiones = [
+          `🚗 *Asalto al depósito de autos:* Entraste sigilosamente al depósito de los Larusso y pintaste el cartel de Cobra Kai. Ganaste +${recompensa} puntos de notoriedad.`,
+          `🛹 *Carrera en el parque de diversiones:* Competiste en el skatepark contra rivales de otros dojos y saliste victorioso. Ganaste +${recompensa} puntos.`,
+          `🍕 *Reunión secreta en el restaurante:* Ayudaste a planear la estrategia para el torneo distrital de karate. Ganaste +${recompensa} puntos de liderazgo.`,
+          `🥋 *Exhibición en el centro comercial:* Hiciste una demostración perfecta de patadas de tornado frente a todo el público. Ganaste +${recompensa} puntos.`
+        ];
+
+        const eventoAleatorio = misiones[Math.floor(Math.random() * misiones.length)];
+
+        await sock.sendMessage(
+          from,
+          { text: `📜 *MISIÓN ESPECIAL DEL DOJO*\n\n@${senderNumber}\n${eventoAleatorio}`, mentions: [sender], contextInfo: Marca_SicariOfc },
+          { quoted: msg }
+        );
+        continue;
+      }
+
      // TOPS DEL GRUPO
       if (command === "/top") {
         if (!isGroup) {
@@ -3238,9 +3404,48 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         continue;
       }
 
+      // COMANDO: /retoraptor /sensei (Desafiar a un Sensei IA del All Valley)
+      if (command === "/retoraptor" || command === "/sensei") {
+        if (!isGroup) {
+          return sock.sendMessage(from, { text: "⚠️ Este comando solo se puede usar en grupos.", contextInfo: Marca_SicariOfc }, { quoted: msg });
+        }
 
-      // Menu APKS e IA
-     if (command === "/appsyextra") {
+        db.prepare(`INSERT INTO juegos_stats (jid, usuario_id, nombre, puntos, dojo) VALUES (?, ?, ?, 0, 'Ninguno') ON CONFLICT(jid) DO NOTHING`).run(sender, sender, pushName);
+        
+        const senseis = [
+          { nombre: "Sensei John Kreese", poder: 65, desc: "Ataque agresivo sin piedad" },
+          { nombre: "Sensei Terry Silver", poder: 70, desc: "Tácticas sucias y astutas" },
+          { nombre: "Sensei Johnny Lawrence", poder: 60, desc: "Patadas de águila enfurecida" },
+          { nombre: "Sensei Daniel LaRusso", poder: 68, desc: "Defensa de la grulla y contraataque" }
+        ];
+
+        const oponenteIA = senseis[Math.floor(Math.random() * senseis.length)];
+        let fuerzaUsuario = Math.floor(Math.random() * 40) + 45; // Entre 45 y 85
+        
+        let logReto = `🦅 *¡DESAFÍO AL SENSEI DEL DOJO!* ☯️\n\n`;
+        logReto += `👤 @${senderNumber} se enfrenta contra *${oponenteIA.nombre}* (${oponenteIA.desc}).\n\n`;
+        logReto += `💥 Tu poder de combate: \`${fuerzaUsuario} pts\`\n`;
+        logReto += `💥 Poder del Sensei: \`${oponenteIA.poder} pts\`\n\n`;
+
+        if (fuerzaUsuario >= oponenteIA.poder) {
+          const premio = 20;
+          db.prepare('UPDATE juegos_stats SET puntos = puntos + ?, victorias = victorias + 1 WHERE jid = ?').run(premio, sender);
+          logReto += `🏆 ¡INCREÍBLE! Lograste superar al maestro en su propio terreno. ¡Has ganado +${premio} puntos para el \`/top\`! 🔥`;
+        } else {
+          logReto += `❌ ¡El Sensei te barrió las piernas sin piedad y te mandó a la lona! No obtienes puntos esta vez. ¡Vuelve a entrenar con\nel comando /entrenar ! 🐍`;
+        }
+
+        await sock.sendMessage(
+          from,
+          { text: logReto, mentions: [sender], contextInfo: Marca_SicariOfc },
+          { quoted: msg }
+        );
+        continue;
+      }
+
+
+     // Menu APKS e IA
+      if (command === "/appsyextra") {
         const { fechaReal, horaReal, pais, timeZone } = getFechaHoraPorNumero(
           sender,
           msg,
@@ -3252,36 +3457,38 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         const nombreParaLog = usuarioBD ? usuarioBD.nombre_completo : (pushName || "Usuario");
 
         console.log(
-          `[MENU4] Usuario: ${nombreParaLog} | País: ${pais} | Zona: ${timeZone} | Hora: ${horaReal}`,
+          `[MENU4] Usuario:${nombreParaLog} |País:${pais} |Zona:${timeZone} |Hora:${horaReal}`,
         );
 
         const response =
-          `╭───◈ COBRAKAI - APKS e IA ◈───╮\n` +
-          `│ 🤖 Bot: CobraKai Bot V1\n` +
-          `│ 👑 Creador: SicarioOfc\n` +
-          `│ 📅${fechaReal}🕒${horaReal}🌎${pais}\n` +
-          `│ 🌎 Modo: ${isGroup ? "Grupo" : "Privado"}\n` +
-          `│ 👤 User: @${senderNumber}\n` +
-          `╰───────────────╯\n\n` +
-          `Hola ${nombreParaLog}, aquí tienes las herramientas de APKs e IA. 👾\n` +
-          `⚠️ *Nota:* Los comandos marcados con [🔒] requieren registro previo con /reg\n\n` +
-          `『 APKS PREMIUM 📱 』\n` +
-          `├ • /mtmanag - Edit string/code [🔒]\n` +
-          `├ • /mtmanagbet - Mt manager prem [🔒]\n` +
-          `├ • /apkeditorpro - Edit code/diseño [🔒]\n` +
-          `├ • /apktoolm - Nombre & Icon [🔒]\n` +
-          `├ • /pixellab - Person text/image [🔒]\n` +
-          `├ • /telegprem - Telegram Premium [🔒]\n` +
-          `├ • /teamzetpriv - App móvil web [🔒]\n` +
-          `└ • /base64pro - Codi / Decodi [🔒]\n\n` +
-          `『 MULTIMEDIA E IA 🤖 』\n` +
-          `├ • /imagen <texto> - Buscar imagen [🔒]\n` +
-          `├ • /musica <texto> - Descargar MP3 [🔒]\n` +
-          `├ • /video <texto> - Descargar MP4 [🔒]\n` +
-          `├ • /aibuscar <texto> - Buscar info [🔒]\n` +
-          `├ • /aisticker - Crear sticker [🔒]\n` +
-          `├ • /toimg - Sticker a imagen [🔒]\n` +
-          `└ • /s <texto> - Texto a sticker [🔒]`;
+          `╭─── ⟨ *APKS & EXTRAS* ⟩ ───╮\n` +
+          `│ 🤖 *Bot:* CobraKai Bot V1\n` +
+          `│ 👑 *Creador:* SicarioOfc\n` +
+          `│ 📅 ${fechaReal} │ 🕒 ${horaReal}\n` +
+           `│ 🌎 *País:* ${pais} (${isGroup ? "👥 Grupo" : "👤 Privado"})\n` +
+          `│ ⌨️ *Prefijo:* [ / ] *(acepta . # !)*\n` +
+          `│ 👤 *User:* @${senderNumber}\n` +
+          `╰────────────────────────╯\n\n` +
+          `¡Bienvenido al arsenal tecnológico, *${nombreParaLog}*! Herramientas de edición y multimedia. 📱🤖\n` +
+          `⚠️ *Aviso:* Los comandos con [🔒] requieren un registro previo usando */reg*.\n\n` +
+          `╭━━━ 📱 *APKS PREMIUM* ━━━╮\n` +
+          `┃ 📲 /mtmanag - MT Manager [🔒]\n` +
+          `┃ 📲 /mtmanagbet - MT Beta [🔒]\n` +
+          `┃ 📲 /apkeditorpro - APK Editor Pro [🔒]\n` +
+          `┃ 📲 /apktoolm - APKTool M [🔒]\n` +
+          `┃ 📲 /pixellab - PixelLab Mod Pro [🔒]\n` +
+          `┃ 📲 /telegprem - Telegram Premium [🔒]\n` +
+          `┃ 📲 /teamzetpriv - App móvil oficial [🔒]\n` +
+          `┗ 📲 /base64pro - Base64 Pro Coder [🔒]\n\n` +
+          `╭━━━ 🌐 *MULTIMEDIA & IA* ━━━╮\n` +
+          `┃ 🏮 /img <texto> - Buscar imagen [🔒]\n` +
+          `┃ 🏮 /play <text>-Descargar music[🔒]\n` +
+          `┃ 🏮 /ytmp4 <text>-Descargar video[🔒]\n` +
+          `┃ 🏮 /search <text>-Búsqueda web[🔒]\n` +
+          `┃ 🏮 /aisticker - Crear sticker de foto [🔒]\n` +
+          `┃ 🏮 /toimg - Sticker a imagen [🔒]\n` +
+          `┗ 🏮 /s <texto> - Texto a sticker Pro [🔒]\n\n` +
+          `> *¡Strike First. Strike Hard. No Mercy!* 🦅`;
 
         await sock.sendMessage(
           from,
@@ -3299,14 +3506,14 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         });
       }
 
-      if (command.startsWith("/imagen")) {
-        const query = body.replace(/^\/imagen/i, "").trim();
+     if (command.startsWith("/img")) {
+        const query = body.replace(/^\/img/i, "").trim();
 
         if (!query) {
           await sock.sendMessage(
             from,
             {
-              text: "❌ Debes escribir lo que deseas buscar.\n\n*Ejemplo:* /imagen auto azul",
+              text: "❌ Debes escribir lo que deseas buscar.\n\n*Ejemplo:* /img auto azul",
             },
             { quoted: msg },
           );
@@ -3366,14 +3573,14 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         }
       }
 
-      if (command.startsWith("/musica")) {
-        const query = body.replace(/^\/musica/i, "").trim();
+      if (command.startsWith("/play")) {
+        const query = body.replace(/^\/play/i, "").trim();
 
         if (!query) {
           await sock.sendMessage(
             from,
             {
-              text: "❌ Debes escribir el nombre de la canción.\n\n*Ejemplo:* /musica dueles jesse y joy",
+              text: "❌ Debes escribir el nombre de la canción.\n\n*Ejemplo:* /play dueles jesse y joy",
             },
             { quoted: msg },
           );
@@ -3476,7 +3683,7 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
             { quoted: msg },
           );
         } catch (error) {
-          console.error("Error detallado en /musica:", error);
+          console.error("Error detallado en /play:", error);
 
           let mensajeUsuario = "❌ No se pudo descargar la canción solicitada.";
           const errString = String(error);
@@ -3508,14 +3715,14 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         }
       }
 
-      if (command.startsWith("/video")) {
-        const query = body.replace(/^\/video/i, "").trim();
+      if (command.startsWith("/ytmp4")) {
+        const query = body.replace(/^\/ytmp4/i, "").trim();
 
         if (!query) {
           await sock.sendMessage(
             from,
             {
-              text: "❌ Debes escribir el nombre del video después de /video.\n\n*Ejemplo:* /video cobra kai trailer español",
+              text: "❌ Debes escribir el nombre del video después de /ytmp4.\n\n*Ejemplo:* /ytmp4 cobra kai trailer español",
             },
             { quoted: msg },
           );
@@ -3617,7 +3824,7 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
             { quoted: msg },
           );
         } catch (error) {
-          console.error("Error detallado en /video:", error);
+          console.error("Error detallado en /ytmp4:", error);
 
           let mensajeUsuario =
             "❌ Ocurrió un error al procesar y descargar el video.";
@@ -3653,14 +3860,14 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
         }
       }
 
-      if (command.startsWith("/aibuscar")) {
-        const query = body.replace(/^\/aibuscar/i, "").trim();
+      if (command.startsWith("/search")) {
+        const query = body.replace(/^\/search/i, "").trim();
 
         if (!query) {
           await sock.sendMessage(
             from,
             {
-              text: "❌ Debes escribir un texto después de /aibuscar.\n\n*Ejemplo:* /aibuscar CKan",
+              text: "❌ Debes escribir un texto después de /search.\n\n*Ejemplo:* /search CKan",
             },
             { quoted: msg },
           );
@@ -3690,7 +3897,7 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
             react: { text: "👍", key: sentMsg.key },
           });
         } catch (error) {
-          console.error("Error en comando /aibuscar:", error);
+          console.error("Error en comando /search:", error);
           await sock.sendMessage(
             from,
             { text: "❌ Ocurrió un error al realizar la búsqueda." },
@@ -4085,21 +4292,27 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
           "hola",
           "Ola",
           "ola",
+          "Olá",
+          "olá",
           "Buenas",
           "buenas",
           "Hello",
           "hello",
         ].includes(command)
       ) {
-        const textoHola = `┌───  *¡HOLA Y BIENVENIDO!*  ───┐
+        const textoHola = `┌─  *¡OSS, BIENVENIDO AL DOJO!*  ─┐
 │
-├  👋 ¡Hola, @${senderNumber}!
-├  🤖 Soy *CobraKaiBot V1*
+├  🥋 ¡Saludos, @${senderNumber}!
+├  🦅 Soy *CobraKaiBot V1*
 │
-├───  *¿CÓMO EMPEZAR?*  ───
+├───  *FILOSOFÍA DEL DOJO*  ───
 │
-├  📌 Usa el comando */menu* para
-│  ver la lista completa de comandos.
+├  🔥 *Strike First. Strike Hard.*
+│  *No Mercy.* ¡Aquí no hay debilidad!
+│
+├  📌 Usa el comando */menu* para ver
+│  las herramientas y comandos 
+│  disponibles del dojo.
 │
 └────────────────────────┘`;
 
@@ -4108,6 +4321,7 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
           {
             text: textoHola,
             mentions: [sender],
+            contextInfo: Marca_SicariOfc,
           },
           { quoted: msg },
         );
@@ -4129,28 +4343,32 @@ _¡Hola! @${senderNumber}, Gracias por usar el bot y apoyar el proyecto!_ 🚀`;
           "arigato",
         ].includes(command)
       ) {
-        const textoGracias = `┌───  *¡DE NADA!*  ───┐
+        const textoGracias = `┌───  *¡RESPETO Y DISCIPLINA!*  ───┐
 │
-├  🤝 ¡Es un placer ayudarte, @${senderNumber}!
-├  🤖 Estamos para servirte en lo que necesites.
+├  🤝 ¡Buen trabajo, @${senderNumber}!
+├  ☯️ El esfuerzo siempre rinde frutos en 
+│  el dojo.
 │
-├───  *¿TE GUSTA EL BOT?*  ───
+├ *¿APOYAS EL ESTILO DE COBRAKAI?* ─
 │
-├  ☕ Si mi trabajo te es útil y deseas apoyar
-│  el proyecto para mantenerlo 24/7 activo,
-│  puedes invitarme un café con el comando:
+├  ☕ Si este bot te ayuda a dominar 
+│  el chat
+│  y quieres mantener los servidores 24/7 
+│  sin piedad,
+│  invítale un café al creador con:
 │
-├  👉 */payapalme*
+├  👉 */paypalme*
 │
 └────────────────────────┘
 
-_¡Tu apoyo nos ayuda a seguir trayendo nuevas funciones!_ 🚀`;
+_¡Tu apoyo nos mantiene entrenando duro!_ 🦅`;
 
         await sock.sendMessage(
           from,
           {
             text: textoGracias,
             mentions: [sender],
+            contextInfo: Marca_SicariOfc,
           },
           { quoted: msg },
         );
@@ -4168,12 +4386,13 @@ _¡Tu apoyo nos ayuda a seguir trayendo nuevas funciones!_ 🚀`;
           "chao",
         ].includes(command)
       ) {
-        const textoAdios = `┌───  *¡HASTA LUEGO!*  ───┐
+        const textoAdios = `┌───  *¡RETIRADA DEL TATAMI!*  ───┐
 │
-├  👋 ¡Adiós, @${senderNumber}!
-├  ✨ Gracias por usar *CobraKaiBot V1*
+├  👋 ¡Hasta luego, @${senderNumber}!
+├  🐍 Descansa y afila tus patadas.
 │
-├  🚀 ¡Te esperamos de vuelta pronto!
+├  🏆 ¡Te esperamos de vuelta en el torneo 
+│  All Valley! *¡No Mercy!*
 │
 └────────────────────────┘`;
 
@@ -4182,6 +4401,7 @@ _¡Tu apoyo nos ayuda a seguir trayendo nuevas funciones!_ 🚀`;
           {
             text: textoAdios,
             mentions: [sender],
+            contextInfo: Marca_SicariOfc,
           },
           { quoted: msg },
         );
